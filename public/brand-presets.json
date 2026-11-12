@@ -16,132 +16,6 @@
     "note": "The example group whose materials fill the commons. Values follow the group's own design guide: Hanken Grotesk is the main font, Vollkorn the secondary serif, violet-blue and dark purple are accents."
   },
   {
-    "id": "harvard",
-    "group_name": "AI Safety Team (AIST)",
-    "university": "Harvard University",
-    "city": "Cambridge, MA",
-    "website": "aisafetyteam.org",
-    "tagline": "Harvard students working to reduce catastrophic risks from advanced AI",
-    "color": "#0c6d88",
-    "accent": "#0f89ab",
-    "dark": "#1b1f1f",
-    "light": "#f3eee3",
-    "font_heading": "Barlow Condensed",
-    "font_body": "Libre Franklin",
-    "source": "https://aisafetyteam.org/",
-    "note": "Exact from CSS variables; the deeper teal-ink they use for buttons and links is the main colour (white text is readable on it), the brighter heading teal is the accent.",
-    "logos": {
-      "square": "/assets/presets/harvard-square.png",
-      "wide": "/assets/presets/harvard-wide.svg",
-      "wide_light": "/assets/presets/harvard-wide-light.svg"
-    }
-  },
-  {
-    "id": "oxford",
-    "group_name": "Oxford AI Safety Initiative",
-    "university": "University of Oxford",
-    "city": "Oxford",
-    "website": "oaisi.org",
-    "tagline": "A community of students and researchers committed to reducing societal risks from AI",
-    "color": "#af3800",
-    "accent": "#ff6b2c",
-    "dark": "#15110e",
-    "light": "#f3eee6",
-    "font_heading": "Martian Mono",
-    "font_body": "Newsreader",
-    "source": "https://oaisi.org/",
-    "note": "Colours and fonts exact from CSS variables (rust, signal, ink, paper); tagline shortened from their meta description (\"advanced artificial intelligence\" became \"AI\").",
-    "logos": {
-      "square": "/assets/presets/oxford-square.svg",
-      "wide": "/assets/presets/oxford-wide.svg"
-    }
-  },
-  {
-    "id": "cambridge",
-    "group_name": "Cambridge AI Safety Hub",
-    "university": "University of Cambridge",
-    "city": "Cambridge",
-    "website": "caish.org",
-    "tagline": "Building the AI safety community in Cambridge",
-    "color": "#945947",
-    "accent": "#b1715b",
-    "dark": "#1a1a1a",
-    "light": "#fbfbfa",
-    "font_heading": "Libre Baskerville",
-    "font_body": "Space Mono",
-    "source": "https://caish.org/",
-    "note": "All values exact from CSS variables (cambridge, cambridge-light, black, off-white); the accent is their lighter tone of the same terracotta.",
-    "logos": {
-      "square": "/assets/presets/cambridge-square.png",
-      "square_light": "/assets/presets/cambridge-square-light.png",
-      "wide": "/assets/presets/cambridge-wide.svg",
-      "wide_light": "/assets/presets/cambridge-wide-light.svg"
-    }
-  },
-  {
-    "id": "stanford",
-    "group_name": "Stanford AI Governance & Alignment",
-    "university": "Stanford University",
-    "city": "Stanford, CA",
-    "website": "saga.stanford.edu",
-    "tagline": "Working to address catastrophic risk from advanced AI.",
-    "color": "#d08d42",
-    "accent": "#b8752b",
-    "dark": "#2f0115",
-    "light": "#fff5eb",
-    "font_heading": "Lexend",
-    "font_body": "Roboto",
-    "source": "https://saga.stanford.edu/",
-    "note": "Exact from CSS; the site is dark (maroon background, cream text), so gold is the brand colour, maroon is dark and their cream text colour serves as light.",
-    "logos": {
-      "square": "/assets/presets/stanford-square.svg",
-      "wide": "/assets/presets/stanford-wide.svg",
-      "wide_light": "/assets/presets/stanford-wide-light.svg"
-    }
-  },
-  {
-    "id": "toronto",
-    "group_name": "Toronto AI Safety Initiative",
-    "university": "University of Toronto",
-    "city": "Toronto",
-    "website": "taisi.ca",
-    "tagline": "AI safety needs more researchers",
-    "color": "#38095f",
-    "accent": "#ff9f03",
-    "dark": "#1b0630",
-    "light": "#ffffff",
-    "font_heading": "Libre Franklin",
-    "font_body": "Libre Franklin",
-    "source": "https://www.taisi.ca/",
-    "note": "All values exact from CSS variables (plum, amber, plum-deep, white background).",
-    "logos": {
-      "square": "/assets/presets/toronto-square.png",
-      "wide": "/assets/presets/toronto-wide.svg",
-      "wide_light": "/assets/presets/toronto-wide-light.svg"
-    }
-  },
-  {
-    "id": "ntu",
-    "group_name": "NTU AI Safety",
-    "university": "National Taiwan University",
-    "city": "Taipei",
-    "website": "ntuais.org",
-    "tagline": "Shaping the Future of AI Safety",
-    "color": "#165343",
-    "accent": "#a98647",
-    "dark": "#0a221d",
-    "light": "#f7faf9",
-    "font_heading": "Share Tech Mono",
-    "font_body": "Inter",
-    "source": "https://ntuais.org/",
-    "note": "Colours and body font exact from CSS variables; headings use ProFont IIx Nerd Font (not on Google Fonts), approximated with Share Tech Mono.",
-    "logos": {
-      "square": "/assets/presets/ntu-square.svg",
-      "wide": "/assets/presets/ntu-wide.png",
-      "wide_light": "/assets/presets/ntu-wide-light.svg"
-    }
-  },
-  {
     "id": "tuebingen",
     "group_name": "AI Safety Tübingen",
     "university": "University of Tübingen",
@@ -155,11 +29,140 @@
     "font_heading": "PT Serif",
     "font_body": "PT Sans",
     "source": "https://aisafetytuebingen.com/",
-    "note": "Exact from CSS: light-theme accent and paper, with the dark theme's accent and background as accent and dark; the site calls itself a student group without naming the university.",
+    "note": "Colours and fonts as the browser shows them on the group's site: the light theme's blue and paper, the dark theme's light blue and background. Logo: the boat mark and wordmark as published.",
     "logos": {
       "square": "/assets/presets/tuebingen-square.svg",
       "wide": "/assets/presets/tuebingen-wide.svg",
       "wide_light": "/assets/presets/tuebingen-wide-light.svg"
+    }
+  },
+  {
+    "id": "saarland",
+    "group_name": "AI Safety Saarland",
+    "university": "Saarland University",
+    "city": "Saarbrücken",
+    "website": "ais-saarland.org",
+    "tagline": "Students from Saarland University working to make AI go well.",
+    "color": "#5ea248",
+    "accent": "#7fc466",
+    "dark": "#0b130e",
+    "light": "#e3efdd",
+    "font_heading": "Plus Jakarta Sans",
+    "font_body": "Plus Jakarta Sans",
+    "source": "https://ais-saarland.org/",
+    "note": "Colours and font as the browser shows them on the group's site (leaf green, the lighter green of its buttons, the near-black green background, the pale green behind its logo). Logo: the published outline-of-Saarland logo; the wide version is set like the page header.",
+    "logos": {
+      "square": "/assets/presets/saarland-square.png",
+      "square_light": "/assets/presets/saarland-square-light.png",
+      "wide": "/assets/presets/saarland-wide.png",
+      "wide_light": "/assets/presets/saarland-wide-light.png"
+    }
+  },
+  {
+    "id": "delft",
+    "group_name": "Delft AI Safety Initiative",
+    "university": "Delft University of Technology",
+    "city": "Delft",
+    "website": "delftaisafety.org",
+    "tagline": "We are a student group working to reduce the risks from artificial intelligence",
+    "color": "#413cd4",
+    "accent": "#c5c2f1",
+    "dark": "#000000",
+    "light": "#ffffff",
+    "font_heading": "Jost",
+    "font_body": "Poppins",
+    "source": "https://www.delftaisafety.org/",
+    "note": "Colours and body font as the browser shows them on the group's site (indigo, the lavender of its header, black, white). Headings there use Futura PT, which is not on Google Fonts; Jost is the closest match. Logo: the published mark in blue and in white; the wide version adds the group's name.",
+    "logos": {
+      "square": "/assets/presets/delft-square.png",
+      "square_light": "/assets/presets/delft-square-light.png",
+      "wide": "/assets/presets/delft-wide.png",
+      "wide_light": "/assets/presets/delft-wide-light.png"
+    }
+  },
+  {
+    "id": "durham",
+    "group_name": "Durham AI Safety Initiative",
+    "university": "Durham University",
+    "city": "Durham",
+    "website": "durhamaisafety.uk",
+    "tagline": "Durham students and academics for reducing catastrophic risks from advanced AI",
+    "color": "#68246d",
+    "accent": "#b06be8",
+    "dark": "#0e0e15",
+    "light": "#e8e8f5",
+    "font_heading": "Merriweather",
+    "font_body": "Raleway",
+    "source": "https://durhamaisafety.uk/",
+    "note": "Colours and fonts as the browser shows them on the group's site (Durham purple, bright purple, navy background, its off-white). Logo: the published DAISI logo; the wide version is set like the page header.",
+    "logos": {
+      "square": "/assets/presets/durham-square.svg",
+      "wide": "/assets/presets/durham-wide.png",
+      "wide_light": "/assets/presets/durham-wide-light.png"
+    }
+  },
+  {
+    "id": "cardiff",
+    "group_name": "AI Safety Cardiff University",
+    "university": "Cardiff University",
+    "city": "Cardiff",
+    "website": "aiscu.org",
+    "tagline": "Ensuring a beneficial future amidst advanced intelligence.",
+    "color": "#b23434",
+    "accent": "#8596ad",
+    "dark": "#0b111e",
+    "light": "#f1f5f9",
+    "font_heading": "Source Serif 4",
+    "font_body": "Inter",
+    "source": "https://aiscu.org/",
+    "note": "Colours and heading font as the browser shows them on the group's site (the red of its logo, slate, navy background, its off-white). Body text there uses the device's own sans-serif; Inter stands in for it. Logo: the red tile with the shield from the page header, set with the name as in that header.",
+    "logos": {
+      "square": "/assets/presets/cardiff-square.svg",
+      "wide": "/assets/presets/cardiff-wide.png",
+      "wide_light": "/assets/presets/cardiff-wide-light.png"
+    }
+  },
+  {
+    "id": "chile",
+    "group_name": "AI Safety Initiative @ UC Chile",
+    "university": "Pontificia Universidad Católica de Chile",
+    "city": "Santiago",
+    "website": "aisuc.dev",
+    "tagline": "La primera iniciativa estudiantil de Seguridad de la Inteligencia Artificial en Chile.",
+    "color": "#3b82f6",
+    "accent": "#818cf8",
+    "dark": "#0f172a",
+    "light": "#f9fafb",
+    "font_heading": "Space Grotesk",
+    "font_body": "Space Grotesk",
+    "source": "https://aisuc.dev/",
+    "note": "Colours and font as the browser shows them on the group's site (blue, indigo, navy background, its off-white). Logo: the published shield; the site only has it in white, so the version for light backgrounds is the same drawing in the site's navy.",
+    "logos": {
+      "square": "/assets/presets/chile-square.svg",
+      "square_light": "/assets/presets/chile-square-light.svg",
+      "wide": "/assets/presets/chile-wide.png",
+      "wide_light": "/assets/presets/chile-wide-light.png"
+    }
+  },
+  {
+    "id": "tufts",
+    "group_name": "Tufts AI Safety",
+    "university": "Tufts University",
+    "city": "Medford, MA",
+    "website": "tassa.dev",
+    "tagline": "Students at Tufts University committed to understanding and reducing the risks of advanced AI systems.",
+    "color": "#3f8bbf",
+    "accent": "#3f8ddf",
+    "dark": "#1a1a1a",
+    "light": "#f5f7f9",
+    "font_heading": "Roboto",
+    "font_body": "Roboto",
+    "source": "https://tassa.dev/",
+    "note": "Colours and font as the browser shows them on the group's site (the blue of its panels and buttons, the brighter blue of its mark, near-black text, pale grey). Logo: the published TASSA banner; the square is the mark cut out of it, and the version for dark backgrounds has the black letters in white.",
+    "logos": {
+      "square": "/assets/presets/tufts-square.png",
+      "wide": "/assets/presets/tufts-wide.png",
+      "wide_light": "/assets/presets/tufts-wide-light.png"
     }
   }
 ]

@@ -42,32 +42,50 @@ const PAIRS = [
 // All Google Fonts (family -> serif | sans | display | hand | mono) and the example brand kits of real groups.
 export let PRESETS = [];
 export async function loadBrandData() {
-  const get = (url) => fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const get = (url) => fetch(url, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   const [fonts, presets] = await Promise.all([get('/vendor/google-fonts.json'), get('/brand-presets.json')]);
   if (Array.isArray(fonts)) for (const [family, kind] of fonts) FONTS[family] ??= kind;
   if (Array.isArray(presets)) PRESETS = presets.filter((p) => p && p.id && p.group_name);
+  if (Array.isArray(presets)) refreshPreset();
+}
+// A visitor who picked an example kit earlier gets that kit as it is now (its logos and values may have changed).
+// If the kit no longer exists, their own kit comes back.
+function refreshPreset() {
+  const id = store.get('commons_brand_preset', '');
+  if (!id) return;
+  const preset = PRESETS.find((p) => p.id === id);
+  if (!preset) {
+    if (store.get('commons_brand_own', null)) restoreOwnBrand();
+    else { store.del('commons_brand_preset'); store.del('commons_brand'); }
+    return;
+  }
+  const now = getBrand();
+  const fresh = presetBrand(preset);
+  if (Object.keys(fresh).some((k) => fresh[k] !== now[k])) setBrand(fresh, true);
 }
 export const findFont = (name) => Object.keys(FONTS).find((f) => f.toLowerCase() === String(name || '').trim().toLowerCase());
 
-// Switch to an example kit. The visitor's own kit is kept aside and can be put back.
-export function applyPreset(id) {
-  const preset = PRESETS.find((p) => p.id === id);
-  if (!preset) return getBrand();
-  const current = store.get('commons_brand', {});
-  if (!store.get('commons_brand_preset', '') && Object.keys(current).length) store.set('commons_brand_own', current);
+// The whole kit of an example group: its texts, colours, fonts and its own logo files (addresses on this site).
+const PRESET_LOGO = /^\/assets\/presets\/[\w.-]+$/;
+function presetBrand(preset) {
   const next = { ...DEFAULT_BRAND };
   for (const k of [...BRAND_TEXT_KEYS, 'color', 'accent', 'dark', 'light']) if (typeof preset[k] === 'string') next[k] = preset[k];
   next.join_url = preset.join_url || preset.website || '';
   next.email = preset.email || '';
   next.font_heading = findFont(preset.font_heading) || DEFAULT_BRAND.font_heading;
   next.font_body = findFont(preset.font_body) || DEFAULT_BRAND.font_body;
-  // The group's own logo files (addresses on this site). A kit without them gets the generated monogram.
   const logos = preset.logos && typeof preset.logos === 'object' ? preset.logos : {};
-  for (const kind of ['square', 'wide', 'square_light', 'wide_light']) {
-    next[`logo_${kind}`] = typeof logos[kind] === 'string' && logos[kind].startsWith('/assets/presets/') ? logos[kind] : '';
-  }
+  for (const kind of ['square', 'wide', 'square_light', 'wide_light']) next[`logo_${kind}`] = PRESET_LOGO.test(logos[kind] || '') ? logos[kind] : '';
+  return next;
+}
+// Switch to an example kit. The visitor's own kit is kept aside and can be put back.
+export function applyPreset(id) {
+  const preset = PRESETS.find((p) => p.id === id);
+  if (!preset) return getBrand();
+  const current = store.get('commons_brand', {});
+  if (!store.get('commons_brand_preset', '') && Object.keys(current).length) store.set('commons_brand_own', current);
   store.set('commons_brand_preset', id);
-  return setBrand(next, true);
+  return setBrand(presetBrand(preset), true);
 }
 export function restoreOwnBrand() {
   const own = store.get('commons_brand_own', null);
@@ -81,7 +99,13 @@ export const activePreset = () => store.get('commons_brand_preset', '') || (Obje
 export const hasOwnBrand = () => !!store.get('commons_brand_own', null);
 
 export function getBrand() {
-  return { ...DEFAULT_BRAND, ...store.get('commons_brand', {}) };
+  const brand = { ...DEFAULT_BRAND, ...store.get('commons_brand', {}) };
+  // An example kit's logo file that is no longer on the site (the kit was replaced) is dropped, not shown broken.
+  if (PRESETS.length) {
+    const known = new Set(PRESETS.flatMap((p) => Object.values(p.logos || {})));
+    for (const k of ['logo_square', 'logo_wide', 'logo_square_light', 'logo_wide_light']) if (PRESET_LOGO.test(brand[k]) && !known.has(brand[k])) brand[k] = '';
+  }
+  return brand;
 }
 export function setBrand(patch, fromPreset = false) {
   // Editing a kit by hand makes it the visitor's own kit.
@@ -209,16 +233,22 @@ export function paletteFrom(color) {
 // ---- generated monogram logos (used until the group uploads its own) ----
 const svgUri = (svg) => 'data:image/svg+xml,' + encodeURIComponent(svg);
 const xml = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+// The short name groups go by: "Cambridge AI Safety Hub" is CAISH, "AI Safety Aachen" is AISA. A short name the
+// group writes in brackets wins ("AI Safety Team (AIST)"); short all-capital words (AI, UC, NTU) are kept whole.
 export function initials(name) {
-  const words = String(name || 'Group').split(/\s+/).filter((w) => /^[\p{L}\p{N}]/u.test(w));
+  const given = String(name || '').match(/\(([\p{Lu}\p{N}]{2,6})\)/u);
+  if (given) return given[1];
+  const words = String(name || 'Group').split(/[\s/–-]+/).filter((w) => /^[\p{L}\p{N}]/u.test(w));
   const caps = words.filter((w) => /^[\p{Lu}\p{N}]/u.test(w));
-  return (caps.length >= 2 ? caps : words).slice(0, 3).map((w) => [...w][0].toUpperCase()).join('') || 'G';
+  const used = caps.length >= 2 ? caps : words;
+  const whole = used.map((w) => (/^[\p{Lu}\p{N}]{2,3}$/u.test(w) ? w : [...w][0].toUpperCase())).join('');
+  return (whole.length <= 6 ? whole : used.map((w) => [...w][0].toUpperCase()).join('').slice(0, 5)) || 'G';
 }
 export function monogram(brand, kind, light = false) {
   const text = initials(brand.group_name);
   const fill = light ? '#ffffff' : brand.color;
   const ink = light ? brand.color : onColor(brand.color, brand.dark);
-  const size = text.length > 2 ? 78 : 96;
+  const size = [96, 96, 96, 78, 62, 50, 42][text.length] || 42;
   const mark = `<rect width="200" height="200" rx="44" fill="${fill}"/><text x="100" y="${100 + size * 0.35}" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="${size}" text-anchor="middle" fill="${ink}">${xml(text)}</text>`;
   if (kind === 'square') return svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">${mark}</svg>`);
   const name = String(brand.group_name || 'Your group');

@@ -140,6 +140,8 @@ export function dress(doc, brand, edits = {}, editable = false, photos = {}) {
     const kind = img.getAttribute('data-logo') === 'square' ? 'square' : 'wide';
     const src = logoFor(brand, kind, img.getAttribute('data-logo-on') === 'dark') || img.getAttribute('data-commons-src');
     if (img.getAttribute('src') !== src) img.setAttribute('src', src);
+    // A template may place a group's own logo differently from its built-in one (which can bleed off the page).
+    img.toggleAttribute('data-logo-own', src !== img.getAttribute('data-commons-src'));
   }
   for (const img of doc.querySelectorAll('img[data-qr]')) {
     const src = qrDataUri(brand[img.getAttribute('data-qr')]) || QR_PLACEHOLDER;
