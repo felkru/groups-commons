@@ -183,7 +183,8 @@ async function home(root) {
   showSelected($('.kitrow', root));
   const results = $('#results', root);
   let seq = 0;
-  async function load() {
+  // Choosing a category or an order is a step the Back button undoes; typing a search is not (one step per letter).
+  async function load(step = false) {
     const mine = ++seq;
     const params = new URLSearchParams();
     if (q) params.set('q', q);
@@ -193,7 +194,8 @@ async function home(root) {
     if (q) url.set('q', q);
     if (cat) url.set('c', cat);
     if (sort) url.set('sort', sort);
-    history.replaceState({}, '', '/' + (url.size ? '?' + url : ''));
+    const address = '/' + (url.size ? '?' + url : '');
+    if (address !== location.pathname + location.search) history[step ? 'pushState' : 'replaceState']({}, '', address);
     let data;
     try {
       data = await api('/items?' + params);
@@ -229,7 +231,7 @@ async function home(root) {
     if (chip) cat = chip.dataset.cat;
     else if (tab) sort = tab.dataset.sort;
     else return;
-    load();
+    load(true);
   });
   let timer;
   $('#q', root).addEventListener('input', (e) => {
