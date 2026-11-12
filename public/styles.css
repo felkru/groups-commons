@@ -306,6 +306,7 @@ dialog.setup ol.plain { margin: 0 0 8px; padding-left: 1.3em; font-size: 15px; d
    Targets are about 44px high, and form fields use 16px text so that iOS does not zoom in on focus. */
 @media (pointer: coarse), (max-width: 640px) {
   .btn { min-height: 44px; }
+  .pill a { min-height: 44px; display: inline-flex; align-items: center; }
   .btn.small { min-height: 36px; padding: 6px 13px; position: relative; }
   .btn.small::before, pre.cmd button::before { content: ''; position: absolute; inset: -4px -2px; } /* 36px to look at, 44px to hit */
   .chip, .kit { min-height: 44px; display: inline-flex; align-items: center; }
