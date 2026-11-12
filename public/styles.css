@@ -170,8 +170,8 @@ main { width: min(1180px, 100% - 40px - 2 * var(--safe-x)); margin: 0 auto; flex
 code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 pre.cmd { background: #2b1610; color: #ffe9d6; border-radius: 12px; padding: 13px 16px; overflow-x: auto; margin: 8px 0 12px; position: relative; white-space: pre-wrap; overflow-wrap: anywhere; }
 pre.cmd button { position: absolute; top: 8px; right: 8px; border: 1px solid #6b4a3e; background: #3b2219; color: #ffe9d6; border-radius: 8px; font-size: 12px; padding: 2px 9px; cursor: pointer; font-family: var(--sans); }
-code { background: var(--pink); border-radius: 5px; padding: 1px 5px; }
-pre code { background: none; padding: 0; }
+code { background: var(--pink); color: var(--ink); border-radius: 5px; padding: 1px 5px; }
+pre code { background: none; color: inherit; padding: 0; }
 
 /* markdown */
 .md { font-size: 15.5px; overflow-wrap: anywhere; }

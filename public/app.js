@@ -98,27 +98,27 @@ function thumb(item) {
   const href = `/m/${item.slug}`;
   if (item.kind === 'template') {
     const img = item.preview ? `<img class="contain" loading="lazy" alt="" src="${filePath(item.slug, item.preview)}?w=480">` : '';
-    return `<a class="thumb" href="${href}" data-template="${esc(item.slug)}" data-path="${esc(item.template.path)}">${img}<span class="live">your brand, live</span></a>`;
+    return `<a class="thumb" href="${href}" tabindex="-1" aria-hidden="true" data-template="${esc(item.slug)}" data-path="${esc(item.template.path)}">${img}<span class="live">your brand, live</span></a>`;
   }
-  if (item.preview) return `<a class="thumb" href="${href}"><img class="cover" loading="lazy" alt="" src="${filePath(item.slug, item.preview)}?w=480"></a>`;
+  if (item.preview) return `<a class="thumb" href="${href}" tabindex="-1" aria-hidden="true"><img class="cover" loading="lazy" alt="" src="${filePath(item.slug, item.preview)}?w=480"></a>`;
   if (item.kind === 'text') {
     const v = item.variants?.[0] || {};
-    return `<a class="thumb" href="${href}"><div class="paper"><b>${esc(v.channel === 'doc' ? 'Document' : v.channel || 'text')}${item.variants?.length > 1 ? ` · ${item.variants.length} versions` : ''}</b>${esc(item.snippet || item.summary)}</div></a>`;
+    return `<a class="thumb" href="${href}" tabindex="-1" aria-hidden="true"><div class="paper"><b>${esc(v.channel === 'doc' ? 'Document' : v.channel || 'text')}${item.variants?.length > 1 ? ` · ${item.variants.length} versions` : ''}</b>${esc(item.snippet || item.summary)}</div></a>`;
   }
   if (item.kind === 'kit') {
-    return `<a class="thumb" href="${href}"><div class="paper"><b>${item.kit.count} items${item.kit.est_cost ? ` · ${esc(item.kit.est_cost)}` : ''}</b><ul>${item.kit.first.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></div></a>`;
+    return `<a class="thumb" href="${href}" tabindex="-1" aria-hidden="true"><div class="paper"><b>${item.kit.count} items${item.kit.est_cost ? ` · ${esc(item.kit.est_cost)}` : ''}</b><ul>${item.kit.first.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></div></a>`;
   }
   if (item.kind === 'supplier') {
-    return `<a class="thumb" href="${href}"><div class="big"><svg viewBox="0 0 48 48"><path d="M8 20l4-10h24l4 10M8 20v18h32V20M8 20h32M19 38V27h10v11"/></svg><div class="t">${esc(item.supplier.name)}</div><div class="s">${esc([item.supplier.type, item.supplier.location].filter(Boolean).join(' · '))}</div></div></a>`;
+    return `<a class="thumb" href="${href}" tabindex="-1" aria-hidden="true"><div class="big"><svg viewBox="0 0 48 48"><path d="M8 20l4-10h24l4 10M8 20v18h32V20M8 20h32M19 38V27h10v11"/></svg><div class="t">${esc(item.supplier.name)}</div><div class="s">${esc([item.supplier.type, item.supplier.location].filter(Boolean).join(' · '))}</div></div></a>`;
   }
   if (item.kind === 'link') {
     let host = '';
     try {
       host = new URL(item.link.url).host.replace(/^www\./, '');
     } catch {}
-    return `<a class="thumb" href="${href}"><div class="big"><svg viewBox="0 0 48 48"><path d="M20 28a8 8 0 0 0 11 0l7-7a8 8 0 0 0-11-11l-3 3M28 20a8 8 0 0 0-11 0l-7 7a8 8 0 0 0 11 11l3-3"/></svg><div class="t">${esc(host)}</div><div class="s">${esc(item.link.label)}</div></div></a>`;
+    return `<a class="thumb" href="${href}" tabindex="-1" aria-hidden="true"><div class="big"><svg viewBox="0 0 48 48"><path d="M20 28a8 8 0 0 0 11 0l7-7a8 8 0 0 0-11-11l-3 3M28 20a8 8 0 0 0-11 0l-7 7a8 8 0 0 0 11 11l3-3"/></svg><div class="t">${esc(host)}</div><div class="s">${esc(item.link.label)}</div></div></a>`;
   }
-  return `<a class="thumb" href="${href}"><div class="big"><svg viewBox="0 0 48 48"><path d="M12 6h17l9 9v27H12zM29 6v9h9M18 24h12M18 31h12"/></svg><div class="s">${esc((item.files || []).map((f) => f.path.split('.').pop().toUpperCase()).filter((v, i, a) => a.indexOf(v) === i).join(' · '))}</div></div></a>`;
+  return `<a class="thumb" href="${href}" tabindex="-1" aria-hidden="true"><div class="big"><svg viewBox="0 0 48 48"><path d="M12 6h17l9 9v27H12zM29 6v9h9M18 24h12M18 31h12"/></svg><div class="s">${esc((item.files || []).map((f) => f.path.split('.').pop().toUpperCase()).filter((v, i, a) => a.indexOf(v) === i).join(' · '))}</div></div></a>`;
 }
 
 export function card(item) {
