@@ -33,8 +33,9 @@ export async function itemPage(root, [slug]) {
     <div id="tool"></div>
     <div class="cols">
       <div>
+        ${item.kind === 'file' ? '<div id="files"></div>' : ''}
         ${item.description ? `<section class="panel"><h2>How to use it</h2><div class="md">${md(item.description)}</div></section>` : ''}
-        <div id="files"></div>
+        ${item.kind === 'file' ? '' : '<div id="files"></div>'}
       </div>
       <aside>
         <section class="panel">
