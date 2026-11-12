@@ -4,7 +4,7 @@
   "private": true,
   "description": "Prototype: a shared commons of reusable organizing materials for AI safety university groups.",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": { "node": ">=22" },
   "scripts": {
     "start": "node server/index.js",
     "dev": "STORE=local PORT=8787 node server/index.js",
