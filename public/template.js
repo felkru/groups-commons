@@ -155,6 +155,45 @@ export function dress(doc, brand, edits = {}, editable = false, photos = {}) {
       a.removeAttribute('href');
     }
   }
+  fitTexts(doc);
+  if (doc.fonts && !doc.documentElement.hasAttribute('data-commons-fitting')) {
+    doc.documentElement.setAttribute('data-commons-fitting', '');
+    doc.fonts.addEventListener('loadingdone', () => fitTexts(doc));
+  }
+}
+
+// With another group's fonts a line can get wider than the page it was set for ("Allergens List" on an A4 sign).
+// Such a text is made smaller until it is back inside its page. Nothing is ever enlarged, and nothing changes
+// while the template shows its own fonts.
+function fitTexts(doc) {
+  const win = doc.defaultView;
+  if (!win) return;
+  for (const el of doc.querySelectorAll('[data-commons-fit]')) {
+    el.style.fontSize = el.getAttribute('data-commons-fit');
+    el.removeAttribute('data-commons-fit');
+  }
+  const root = doc.documentElement.style;
+  if (!root.getPropertyValue('--brand-font-body') && !root.getPropertyValue('--brand-font-heading')) return;
+  for (const page of doc.querySelectorAll('.page')) {
+    const box = page.getBoundingClientRect();
+    if (!box.width) continue;
+    for (const el of page.querySelectorAll('[data-edit]')) {
+      if (!el.textContent.trim() || el === doc.activeElement) continue;
+      const range = doc.createRange();
+      range.selectNodeContents(el);
+      let r = range.getBoundingClientRect();
+      const outside = () => r.width > 0 && (r.right > box.right + 0.5 || r.left < box.left - 0.5);
+      if (!outside()) continue;
+      const before = el.style.fontSize;
+      let size = parseFloat(win.getComputedStyle(el).fontSize) || 0;
+      for (let i = 0; i < 10 && size > 4 && outside(); i++) {
+        size *= 0.95;
+        el.style.fontSize = size + 'px';
+        r = range.getBoundingClientRect();
+      }
+      el.setAttribute('data-commons-fit', before);
+    }
+  }
 }
 
 function readEdits(doc) {
@@ -171,6 +210,14 @@ function readEdits(doc) {
 async function serialize(doc, mode) {
   const copy = doc.documentElement.cloneNode(true);
   copy.removeAttribute('data-commons-ready');
+  copy.removeAttribute('data-commons-fitting');
+  // Sizes that were reduced to fit the page stay in a finished file; a shared template gets its own sizes back.
+  for (const el of copy.querySelectorAll('[data-commons-fit]')) {
+    if (mode === 'share') el.style.fontSize = el.getAttribute('data-commons-fit');
+    if (!el.getAttribute('style')) el.removeAttribute('style');
+    el.removeAttribute('data-commons-fit');
+  }
+  if (mode === 'share') for (const img of copy.querySelectorAll('[data-logo-own]')) img.removeAttribute('data-logo-own');
   const base = copy.querySelector('base[data-commons]')?.getAttribute('href');
   copy.querySelectorAll('[data-commons]').forEach((e) => e.remove());
   for (const el of copy.querySelectorAll('[contenteditable]')) {
