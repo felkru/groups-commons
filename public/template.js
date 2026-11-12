@@ -194,19 +194,31 @@ function fitTexts(doc) {
   for (const page of doc.querySelectorAll('.page')) {
     const box = page.getBoundingClientRect();
     if (!box.width) continue;
-    // Texts filled from the kit (a long group name) are always checked, and against the box the template gives
-    // them; texts of the template itself only when another group's fonts are in use.
-    for (const el of page.querySelectorAll(otherFonts ? '[data-edit], [data-brand]' : '[data-brand]')) {
+    // Texts filled from the kit (a long group name), and the texts they stand in, are always checked; the other
+    // texts of the template only when another group's fonts are in use.
+    const targets = new Set();
+    for (const el of page.querySelectorAll('[data-brand]')) targets.add(el.closest('[data-edit]') || el);
+    if (otherFonts) for (const el of page.querySelectorAll('[data-edit]')) targets.add(el);
+    for (const el of targets) {
       if (!el.textContent.trim() || el === doc.activeElement) continue;
       const range = doc.createRange();
       range.selectNodeContents(el);
       let r = range.getBoundingClientRect();
+      // A text from the kit stays inside the box its template gives it, every text stays on its page.
       const right = el.hasAttribute('data-brand') && el.parentElement ? Math.min(box.right, el.parentElement.getBoundingClientRect().right) : box.right;
       const outside = () => r.width > 0 && (r.right > right + 0.5 || r.left < box.left - 0.5);
-      if (!outside()) continue;
+      // Converted artwork (.tx) places every line by itself: more lines than the text has means one has wrapped.
+      const lines = el.closest('.tx') ? el.textContent.replace(/\s+$/, '').split('\n').length : 0;
+      const wrapped = () => {
+        if (!lines) return false;
+        const cs = win.getComputedStyle(el);
+        const line = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
+        return el.offsetHeight > (lines + 0.5) * line;
+      };
+      if (!outside() && !wrapped()) continue;
       const before = el.style.fontSize;
       let size = parseFloat(win.getComputedStyle(el).fontSize) || 0;
-      for (let i = 0; i < 16 && size > 4 && outside(); i++) {
+      for (let i = 0; i < 16 && size > 4 && (outside() || wrapped()); i++) {
         size *= 0.95;
         el.style.fontSize = size + 'px';
         r = range.getBoundingClientRect();
