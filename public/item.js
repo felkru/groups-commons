@@ -277,7 +277,8 @@ function filesPanel(box, item) {
   const sizes = Object.fromEntries((item.file_list || []).map((f) => [f.path, f.size]));
   const images = listed.filter((f) => IMG.includes(extOf(f.path)));
   const pages = item.pages || [];
-  const preview = !pages.length && item.kind === 'file' && item.preview && !images.some((f) => f.path === item.preview) ? item.preview : null;
+  // The overview picture is only for materials without pictures of their own: those are shown themselves.
+  const preview = !pages.length && !images.length && item.kind === 'file' && item.preview ? item.preview : null;
   box.innerHTML = `
     <section class="panel">
       <h2>${item.kind === 'file' ? 'Files' : 'Attached files'}</h2>
