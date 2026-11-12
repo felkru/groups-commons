@@ -1,5 +1,6 @@
 # commons: Groups Commons prototype (shared materials for AI safety university groups).
-# One Cloud Run service; items and votes in a named Firestore database, files in a private bucket,
+# One Cloud Run service; records in Postgres (Cloud SQL, since 2026-11-12; before that a named Firestore database,
+# which is kept), files in a private bucket,
 # Vertex AI for semantic search (embeddings) and the printable -> template conversion (Gemini).
 # Source: ~/Documents/programming/groups-commons. Deploy: build the image, set it in images.auto.tfvars, plan, apply.
 
@@ -70,6 +71,130 @@ resource "google_project_iam_member" "commons_vertex" {
   project = local.commons_project
   role    = "roles/aiplatform.user"
   member  = "serviceAccount:${google_service_account.commons_web.email}"
+}
+
+# ---- Postgres (Cloud SQL): the system of record for item records, votes, accounts, sites and the file index ------------
+# File bytes stay in the bucket above (object storage costs about a tenth of database disk per GB).
+# Smallest shared-core instance, about USD 10 a month with its disk. To scale, raise `tier` (for example
+# db-custom-1-3840) and, for failover, set availability_type = "REGIONAL"; both are in-place changes with a short restart.
+resource "google_project_service" "commons_sqladmin" {
+  project            = local.commons_project
+  service            = "sqladmin.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Calls made with a person's credentials (tofu, gcloud) are counted against the ops project, so the API is on there too.
+resource "google_project_service" "commons_sqladmin_ops" {
+  project            = "your-ops-project"
+  service            = "sqladmin.googleapis.com"
+  disable_on_destroy = false
+}
+
+# The database lives on an address range that is reserved in the default network and handed to Google's managed services.
+data "google_compute_network" "commons_default" {
+  project = local.commons_project
+  name    = "default"
+}
+
+resource "google_project_service" "commons_servicenetworking" {
+  project            = local.commons_project
+  service            = "servicenetworking.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_compute_global_address" "commons_sql_range" {
+  project       = local.commons_project
+  name          = "commons-sql-range"
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 20
+  network       = data.google_compute_network.commons_default.id
+  labels        = local.commons_labels
+}
+
+resource "google_service_networking_connection" "commons_sql" {
+  network                 = data.google_compute_network.commons_default.id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.commons_sql_range.name]
+  depends_on              = [google_project_service.commons_servicenetworking]
+}
+
+resource "google_sql_database_instance" "commons" {
+  project             = local.commons_project
+  name                = "commons-pg"
+  region              = local.commons_region
+  database_version    = "POSTGRES_17"
+  deletion_protection = true
+  settings {
+    edition                     = "ENTERPRISE" # shared-core tiers exist only in this edition
+    tier                        = "db-f1-micro"
+    availability_type           = "ZONAL"
+    disk_type                   = "PD_SSD"
+    disk_size                   = 10
+    disk_autoresize             = true
+    deletion_protection_enabled = true
+    user_labels                 = local.commons_labels
+    backup_configuration {
+      enabled                        = true
+      start_time                     = "03:00"
+      point_in_time_recovery_enabled = true
+      transaction_log_retention_days = 7
+      backup_retention_settings {
+        retained_backups = 7
+      }
+    }
+    ip_configuration {
+      # Private address only (the org forbids public ones on databases). Cloud Run reaches it through Direct VPC
+      # egress, which costs nothing extra; nothing outside the network can connect.
+      ipv4_enabled                                  = false
+      private_network                               = data.google_compute_network.commons_default.id
+      enable_private_path_for_google_cloud_services = true
+      ssl_mode                                      = "ENCRYPTED_ONLY"
+    }
+    maintenance_window {
+      day  = 7
+      hour = 4
+    }
+  }
+  depends_on = [google_project_service.commons_sqladmin, google_project_service.commons_sqladmin_ops, google_service_networking_connection.commons_sql]
+}
+
+resource "google_sql_database" "commons" {
+  project  = local.commons_project
+  instance = google_sql_database_instance.commons.name
+  name     = "commons"
+}
+
+resource "google_project_iam_member" "commons_cloudsql" {
+  project = local.commons_project
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.commons_web.email}"
+}
+
+# Database password of the user "commons". Secret and user are created with gcloud, so the value never touches tofu:
+#   openssl rand -base64 36 | tr -d '\n/+=' | gcloud secrets create commons-db-password --project cs-project-tvcmny79 \
+#     --replication-policy=automatic --labels=app=commons,purpose=quota-building --data-file=-
+#   gcloud sql users create commons --instance commons-pg --project cs-project-tvcmny79 \
+#     --password "$(gcloud secrets versions access latest --secret commons-db-password --project cs-project-tvcmny79)"
+import {
+  to = google_secret_manager_secret.commons_db_password
+  id = "projects/cs-project-tvcmny79/secrets/commons-db-password"
+}
+
+resource "google_secret_manager_secret" "commons_db_password" {
+  project   = local.commons_project
+  secret_id = "commons-db-password"
+  labels    = local.commons_labels
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_iam_member" "commons_db_password" {
+  project   = local.commons_project
+  secret_id = google_secret_manager_secret.commons_db_password.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.commons_web.email}"
 }
 
 # ---- moderator token (created with gcloud together with its first version, so the value never touches tofu) ------------
@@ -145,6 +270,14 @@ resource "google_cloud_run_v2_service" "commons_web" {
     service_account                  = google_service_account.commons_web.email
     max_instance_request_concurrency = 40
     timeout                          = "300s" # a conversion can take a few minutes
+    # The database has a private address only: the service gets a foot in the default network (no connector to pay for).
+    vpc_access {
+      network_interfaces {
+        network    = "default"
+        subnetwork = "default"
+      }
+      egress = "PRIVATE_RANGES_ONLY"
+    }
     containers {
       image = var.images["commons-web"]
       ports {
@@ -159,7 +292,7 @@ resource "google_cloud_run_v2_service" "commons_web" {
           memory = "2Gi" # LibreOffice (Office file previews) needs the headroom
         }
       }
-      # /api/health answers 200 only when Firestore and the bucket answer. A new revision that cannot reach its data
+      # /api/health answers 200 only when the database and the bucket answer. A new revision that cannot reach its data
       # therefore never takes traffic (the old one keeps serving), and an instance that lost them for two minutes
       # is replaced.
       startup_probe {
@@ -183,11 +316,32 @@ resource "google_cloud_run_v2_service" "commons_web" {
       }
       env {
         name  = "STORE"
-        value = "gcp"
+        value = "pg" # records in Postgres, file bytes in the bucket. "gcp" was Firestore (kept as it was on the day of the move)
       }
       env {
-        name  = "FIRESTORE_DB"
-        value = google_firestore_database.commons.name
+        name  = "CLOUDSQL_INSTANCE"
+        value = google_sql_database_instance.commons.connection_name
+      }
+      env {
+        name  = "CLOUDSQL_IP_TYPE"
+        value = "PRIVATE"
+      }
+      env {
+        name  = "PGDATABASE"
+        value = google_sql_database.commons.name
+      }
+      env {
+        name  = "PGUSER"
+        value = "commons"
+      }
+      env {
+        name = "PGPASSWORD"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.commons_db_password.secret_id
+            version = "latest"
+          }
+        }
       }
       env {
         name  = "BUCKET"
@@ -240,6 +394,8 @@ resource "google_cloud_run_v2_service" "commons_web" {
     google_storage_bucket_iam_member.commons_object_admin,
     google_secret_manager_secret_iam_member.commons_admin_token,
     google_secret_manager_secret_iam_member.commons_session_secret,
+    google_secret_manager_secret_iam_member.commons_db_password,
+    google_project_iam_member.commons_cloudsql,
   ]
 }
 
