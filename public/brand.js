@@ -61,6 +61,11 @@ export function applyPreset(id) {
   next.email = preset.email || '';
   next.font_heading = findFont(preset.font_heading) || DEFAULT_BRAND.font_heading;
   next.font_body = findFont(preset.font_body) || DEFAULT_BRAND.font_body;
+  // The group's own logo files (addresses on this site). A kit without them gets the generated monogram.
+  const logos = preset.logos && typeof preset.logos === 'object' ? preset.logos : {};
+  for (const kind of ['square', 'wide', 'square_light', 'wide_light']) {
+    next[`logo_${kind}`] = typeof logos[kind] === 'string' && logos[kind].startsWith('/assets/presets/') ? logos[kind] : '';
+  }
   store.set('commons_brand_preset', id);
   return setBrand(next, true);
 }

@@ -1,0 +1,35 @@
+# Real installs of Claude Code and Codex through the hosted setup script on Linux, in three situations.
+substitutions:
+  _SITE: ''
+steps:
+  - id: bare-ubuntu-no-node
+    name: ubuntu:24.04
+    waitFor: ['-']
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        apt-get update -qq >/dev/null && apt-get install -y -qq curl ca-certificates >/dev/null 2>&1
+        useradd -m tester && cp check.sh /home/tester/ && chown tester /home/tester/check.sh
+        su - tester -c "bash /home/tester/check.sh ubuntu-no-node ${_SITE}" || true
+  - id: node-as-normal-user
+    name: node:22-bookworm
+    waitFor: ['-']
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        cp check.sh /home/node/ && chown node /home/node/check.sh
+        su - node -c "bash /home/node/check.sh node-user ${_SITE}" || true
+  - id: node-with-own-npm-folder
+    name: node:22-bookworm
+    waitFor: ['-']
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        cp check.sh /home/node/ && chown node /home/node/check.sh
+        su - node -c "mkdir -p ~/.npm-global && npm config set prefix ~/.npm-global && bash /home/node/check.sh node-own-prefix ${_SITE}" || true
+timeout: 1500s
+options:
+  logging: CLOUD_LOGGING_ONLY

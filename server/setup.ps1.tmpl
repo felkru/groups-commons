@@ -376,7 +376,26 @@ __REQUEST__
     if (-not $claudeReady) { $start = 'codex' }
     Write-Host "Now open your agent (type: $start; the first time it asks you to sign in) and say, for example:"
     Write-Host '  We have a stall at the activities fair next week. Find a table sign and a flyer on the Groups Commons and prepare them for our group.'
-    Write-Host "If ""$start"" is not found, open a new PowerShell window first."
+    # A fresh install is often in a folder that is not on the PATH; then a new window does not help either.
+    $startPath = Find-Tool $start
+    if ((-not $startPath) -and ($start -eq 'codex')) { $startPath = Find-Codex }
+    $startDir = ''
+    if ($startPath) { $startDir = (Split-Path -Parent $startPath).TrimEnd('\', '/') }
+    $known = $false
+    foreach ($scope in @('User', 'Machine')) {
+      foreach ($entry in "$([Environment]::GetEnvironmentVariable('Path', $scope))".Split(';')) {
+        if ($startDir -and ([Environment]::ExpandEnvironmentVariables($entry).TrimEnd('\', '/') -eq $startDir)) { $known = $true }
+      }
+    }
+    if ($startDir -and (-not $known)) {
+      Write-Host """$start"" is in $startDir, which is not on your PATH yet. Start it with its full name:"
+      Write-Host "  & ""$startPath"""
+      Write-Host 'or paste this line once and open a new PowerShell window:'
+      Write-Host "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$startDir', 'User')"
+    }
+    else {
+      Write-Host "If ""$start"" is not found, open a new PowerShell window first."
+    }
   }
   else {
     Write-Host 'No agent is connected yet. Install one (see above), then run the same command again.'

@@ -31,3 +31,7 @@ seed/
 # build through .gcloudignore), not of the public repository. tools/intro-video/README.md says how to make it.
 public/assets/intro.mp4
 public/assets/intro-poster.jpg
+
+# Logo files of the example brand kits (other groups' logos, built by tools/build-preset-logos.py): on the site, not in
+# the public repository. Without them the example kits show generated monograms.
+public/assets/presets/

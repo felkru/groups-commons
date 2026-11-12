@@ -118,6 +118,22 @@ look_in_npm_folder() {
   have codex
 }
 
+# Says how to start an agent whose folder is not on the PATH of the person's terminal.
+path_hint() {
+  _where="$(command -v "$1" 2>/dev/null)" || return 0
+  _dir="$(dirname "$_where")"
+  case ":$ORIGINAL_PATH:" in
+    *":$_dir:"*) return 0 ;;
+  esac
+  say "\"$1\" is in $_dir, which is not on your PATH yet. Start it with its full name:"
+  say "  $_where"
+  case "${SHELL:-}" in
+    */zsh) say "or paste this line once and open a new terminal window:" && say "  echo 'export PATH=\"$_dir:\$PATH\"' >> ~/.zshrc" ;;
+    */bash) say "or paste this line once and open a new terminal window:" && say "  echo 'export PATH=\"$_dir:\$PATH\"' >> ~/.bashrc" ;;
+    */fish) say "or paste this line once:" && say "  fish_add_path $_dir" ;;
+  esac
+}
+
 setup_codex() {
   step "Codex"
   if look_in_npm_folder; then
@@ -132,6 +148,12 @@ setup_codex() {
     info "Not installed yet. Installing it with: npm install -g @openai/codex"
     npm install -g @openai/codex </dev/null
     hash -r 2>/dev/null
+    if ! look_in_npm_folder; then
+      # The usual reason: npm's shared folder belongs to the administrator. Your own folder needs no such rights.
+      info "That did not work. Trying your own folder instead: npm install -g --prefix \"$HOME/.local\" @openai/codex"
+      npm install -g --prefix "$HOME/.local" @openai/codex </dev/null
+      hash -r 2>/dev/null
+    fi
     if look_in_npm_folder; then
       info "Installed: $(command -v codex)"
       result "[done] Codex installed"
@@ -148,6 +170,7 @@ setup_codex() {
   fi
 
   info "Connecting it to the commons ..."
+  mkdir -p "${CODEX_HOME:-$HOME/.codex}" 2>/dev/null # Codex stops when its own folder does not exist yet
   codex mcp remove commons </dev/null >/dev/null 2>&1
   if _out=$(codex mcp add commons --url "$COMMONS_URL/mcp" </dev/null 2>&1); then
     info "Connected. Codex can now search the commons and prepare materials for your group."
@@ -335,6 +358,7 @@ main() {
     [ "$CLAUDE_READY" = 1 ] || _start='codex'
     say "Now open your agent (type: $_start; the first time it asks you to sign in) and say, for example:"
     say "  We have a stall at the activities fair next week. Find a table sign and a flyer on the Groups Commons and prepare them for our group."
+    path_hint "$_start"
   else
     say "No agent is connected yet. Install one (see above), then run the same command again."
   fi

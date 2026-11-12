@@ -527,16 +527,26 @@ async function cmdSite({ pos, opt }) {
   const files = walkSite(dir);
   // Pages built for the top of a domain point to /assets/... and would miss their files under /s/<name>/.
   const index = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
-  const rooted = [...index.matchAll(/(?:href|src)="(\/[^"/][^"]*)"/g)].map((m) => m[1]).filter((u) => !u.startsWith(`/s/${name}/`));
+  const rooted = [...index.matchAll(/(?:href|src)="(\/[^"/][^"]*)"/g)].map((m) => m[1]).filter((u) => !(u === `/s/${name}` || /^[/?#]/.test(u.slice(`/s/${name}`.length)) && u.startsWith(`/s/${name}`)));
   if (rooted.length && !opt.force) {
     throw new Error(`index.html links to "${rooted[0]}", which only works at the top of a domain. Build the site for the address /s/${name}/ (Astro: "npx astro build --base /s/${name}"; Vite: "--base /s/${name}/") and run this again, or pass --force.`);
   }
   note(`Uploading ${files.length} files to ${ctx.url}/s/${name}/ ...`);
+  // Hosting leftovers for other platforms (GitHub Pages' CNAME, Netlify's _headers ...) are not part of the pages.
+  const sent = [];
+  const skipped = [];
   for (const [i, rel] of files.entries()) {
-    await call('PUT', `/api/sites/${name}/files/${rel.split('/').map(encodeURIComponent).join('/')}`, { body: fs.readFileSync(path.join(dir, rel)) });
+    try {
+      await call('PUT', `/api/sites/${name}/files/${rel.split('/').map(encodeURIComponent).join('/')}`, { body: fs.readFileSync(path.join(dir, rel)) });
+      sent.push(rel);
+    } catch (e) {
+      if (!/File type not allowed/i.test(e.message) || /\.(html?|css|m?js)$/i.test(rel)) throw e;
+      skipped.push(rel);
+    }
     if ((i + 1) % 25 === 0) note(`  ${i + 1}/${files.length}`);
   }
-  const r = await call('POST', `/api/sites/${name}/publish`, { json: { files, title: opt.title || ctx.cfg.group || name } });
+  if (skipped.length) note(`Left out (not a file type a website here can serve): ${skipped.join(', ')}`);
+  const r = await call('POST', `/api/sites/${name}/publish`, { json: { files: sent, title: opt.title || ctx.cfg.group || name } });
   if (opt.json) return out(JSON.stringify(r, null, 2));
   if (r.status === 'published') out(`Live: ${r.url}`);
   else {
