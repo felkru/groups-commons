@@ -444,6 +444,26 @@ describe('connections', () => {
     assert.deepEqual(pool.log, ['on(error)', 'BEGIN', 'SELECT 1', 'COMMIT', 'release(reuse)', 'pool:SELECT 2', 'end']);
     assert.deepEqual(closed, ['connector']);
   });
+  test('a read on a dead connection is tried once more; a write, or an answer from the database, is not', async () => {
+    const attempts = [];
+    const dead = () => new Error('Connection terminated unexpectedly');
+    const refused = () => Object.assign(new Error('relation "nope" does not exist'), { severity: 'ERROR', code: '42P01' });
+    const pool = (failures) => ({
+      on() {},
+      query: async (text) => {
+        attempts.push(text);
+        const failure = failures.shift();
+        if (failure) throw failure;
+        return { rows: [{ ok: 1 }] };
+      },
+    });
+    assert.deepEqual((await poolDb(pool([dead()])).query('SELECT data FROM docs')).rows, [{ ok: 1 }]);
+    await assert.rejects(poolDb(pool([dead(), dead()])).query('  select 1'), /terminated/);
+    await assert.rejects(poolDb(pool([dead()])).query('UPDATE items SET data = data'), /terminated/);
+    await assert.rejects(poolDb(pool([dead()])).query('INSERT INTO quotas SELECT 1'), /terminated/);
+    await assert.rejects(poolDb(pool([refused()])).query('SELECT * FROM nope'), { code: '42P01' });
+    assert.deepEqual(attempts, ['SELECT data FROM docs', 'SELECT data FROM docs', '  select 1', '  select 1', 'UPDATE items SET data = data', 'INSERT INTO quotas SELECT 1', 'SELECT * FROM nope']);
+  });
   test('a transaction that fails is rolled back and the error passed on', async () => {
     const pool = fakePool();
     await assert.rejects(poolDb(pool).transaction(async (tx) => {
@@ -505,7 +525,7 @@ describe('connections', () => {
     const env = { CLOUDSQL_INSTANCE: 'proj:us-central1:commons', PGUSER: 'commons', PGPASSWORD: 'secret', PGDATABASE: 'commons', DATABASE_URL: '' };
     const d = await connect(env, { Connector, Pool });
     assert.deepEqual(calls, [{ instanceConnectionName: 'proj:us-central1:commons', ipType: 'PRIVATE' }]);
-    assert.deepEqual(d.pool.options, { max: 5, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000, application_name: 'groups-commons', stream: 'a function that opens the TLS socket', ssl: false, user: 'commons', password: 'secret', database: 'commons' });
+    assert.deepEqual(d.pool.options, { max: 5, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000, keepAlive: true, application_name: 'groups-commons', stream: 'a function that opens the TLS socket', ssl: false, user: 'commons', password: 'secret', database: 'commons' });
     await d.end();
     assert.deepEqual(calls.slice(1), ['pool ended', 'connector closed']);
     for (const ipType of ['PUBLIC', 'psc']) {

@@ -496,7 +496,18 @@ export function poolDb(pool, onEnd) {
   pool.on('error', (e) => console.error('idle database connection failed:', e.message));
   return {
     pool,
-    query: (text, params) => pool.query(text, params),
+    // A connection that sat idle can turn out to be dead when it is next used (the database restarted, or the
+    // instance was frozen between requests). Reading again is always safe, so a read is tried a second time on a
+    // fresh connection; a write is not, because nobody knows whether the first attempt arrived.
+    async query(text, params) {
+      try {
+        return await pool.query(text, params);
+      } catch (e) {
+        const answered = e?.severity !== undefined; // the database itself said no: asking again changes nothing
+        if (answered || !/^\s*SELECT\b/i.test(text)) throw e;
+        return pool.query(text, params);
+      }
+    },
     async transaction(fn) {
       const client = await pool.connect();
       let broken = false;
@@ -580,6 +591,7 @@ export async function connect(env = process.env, use = {}) {
     max: Math.max(1, Number(env.PG_POOL_MAX) || 5),
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
+    keepAlive: true,
     application_name: 'groups-commons',
     ...(schema ? { options: `-c search_path=${schema}` } : {}),
   };
