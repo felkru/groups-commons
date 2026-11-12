@@ -9,7 +9,8 @@
     "start": "node server/index.js",
     "dev": "STORE=local PORT=8787 node server/index.js",
     "test": "node --test test/*.test.js",
-    "test:pg": "STORE=pg PG_TEST=pglite node --test test/*.test.js"
+    "test:pg": "STORE=pg PG_TEST=pglite node --test test/*.test.js",
+    "test:pg:server": "STORE=pg PG_TEST=server node --test --test-concurrency=2 test/*.test.js"
   },
   "dependencies": {
     "@google-cloud/cloud-sql-connector": "^1.13.0",

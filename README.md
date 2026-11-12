@@ -6,7 +6,8 @@ tabling kits, suppliers. Built as a prototype to test the technically risky part
 The live instance is internal for now; ask the maintainers for the link.
 
 ## What is in here
-- `server/`: Express API. `index.js` (routes), `store.js` (local files or Firestore + Cloud Storage), `rank.js` (hot / best / top),
+- `server/`: Express API. `index.js` (routes), `store.js` (storage: local files, or Firestore + Cloud Storage), `store-pg.js`
+  (storage: PostgreSQL + Cloud Storage), `files.js` (file bytes: a folder or a bucket), `rank.js` (hot / best / top),
   `ingest.js` (validation), `ai.js` (Vertex AI: embeddings for search, Gemini for printable -> template), `preview.js` (thumbnails).
 - `server/accounts.js`: accounts (user name + password, signed session tokens). Hosted group websites (`/s/<name>`), the
   leaderboard, page previews for PDFs and Office files (LibreOffice) and AI logo marks live in `index.js`, `preview.js` and `ai.js`.
@@ -32,6 +33,7 @@ npm install
 STORE=local PORT=8787 ADMIN_TOKEN=dev node server/index.js          # add VERTEX=1 for semantic search and conversion (uses gcloud ADC)
 COMMONS_URL=http://localhost:8787 COMMONS_TOKEN=dev node cli/commons.mjs add seed/*/ --stats seed/_stats.json
 npm test                                                            # local store in a temporary folder, no cloud access
+npm run test:pg                                                     # the same tests on the PostgreSQL store (PGlite, nothing to install)
 python3 tools/test-setup-sh.py http://localhost:8787               # runs /setup.sh in a sandbox with stub claude, codex and npm
 ```
 `/setup.ps1` has a test for Cloud Build (PowerShell 7 on Linux, stub programs): `tools/test-setup-ps1.cloudbuild.yaml`.
@@ -57,8 +59,14 @@ OpenTofu (`tofu plan -out=tfplan`, read the summary, `tofu apply tfplan`); secre
 ### Settings
 | Variable | Meaning |
 | --- | --- |
-| `STORE` | `gcp` (Firestore + Cloud Storage) or `local` (files under `DATA_DIR`, default `./data`). |
-| `FIRESTORE_DB`, `BUCKET` | Database name and bucket for `STORE=gcp`. |
+| `STORE` | `pg` (PostgreSQL + Cloud Storage), `gcp` (Firestore + Cloud Storage) or `local` (files under `DATA_DIR`, default `./data`). |
+| `BUCKET` | The bucket for file bytes (`STORE=pg` and `STORE=gcp`). With `STORE=pg` and no bucket, files go to `DATA_DIR/files`. |
+| `FIRESTORE_DB` | Database name for `STORE=gcp` (and for the migration tool). Default `commons`. |
+| `CLOUDSQL_INSTANCE`, `CLOUDSQL_IP_TYPE` | `STORE=pg` through the Cloud SQL connector: `project:region:instance`, and which address to use: `PRIVATE` (default), `PUBLIC` or `PSC`. |
+| `PGUSER`, `PGPASSWORD`, `PGDATABASE` | Database user, password (a secret) and database name. |
+| `PGHOST`, `PGPORT`, `PGSSLMODE` | `STORE=pg` without the connector: an address, a name or a socket folder (`/cloudsql/project:region:instance`). `PGSSLMODE=require` encrypts without checking the certificate (the mode for a bare private address); `verify-ca` / `verify-full` check it against `PGSSLROOTCERT`. |
+| `DATABASE_URL` | `STORE=pg` with everything in one address (`postgres://user:password@host:5432/database`). Wins over the two rows above. |
+| `PG_POOL_MAX`, `PG_SCHEMA` | Optional. Connections per instance (default 5) and a schema to keep the tables in (default `public`). |
 | `ADMIN_TOKEN` | The moderator token. Whoever holds it is a moderator. Secret `commons-admin-token`. |
 | `SESSION_SECRET` | Signs sign-in sessions, preview links of hosted sites and file keys. Secret `commons-session-secret`. Without it the key is derived from `ADMIN_TOKEN` (and a warning is logged). |
 | `VERTEX` | `1` switches on semantic search, the printable converter and logo suggestions. |
@@ -70,7 +78,7 @@ OpenTofu (`tofu plan -out=tfplan`, read the summary, `tofu apply tfplan`); secre
 2. `gcloud builds submit --project cs-project-tvcmny79 --region us-central1 --tag us-central1-docker.pkg.dev/cs-project-tvcmny79/apps/commons-web:$(git rev-parse --short HEAD) .`
 3. Set the tag in `images.auto.tfvars`, then `tofu plan -out=tfplan` and `tofu apply tfplan` in the tofu directory.
 
-A new revision takes traffic only after `GET /api/health` answered 200 on it, that is, after it reached Firestore and
+A new revision takes traffic only after `GET /api/health` answered 200 on it, that is, after it reached the database and
 the bucket. If it never does, the previous revision keeps serving and the apply fails. To go back, set the previous
 tag in `images.auto.tfvars` and apply. On shutdown (SIGTERM) an instance stops accepting connections, finishes the
 requests it has and exits.
@@ -92,8 +100,85 @@ gcloud secrets versions disable <old version number> --secret commons-admin-toke
 - To end the sessions of one person, change their role or delete the account on the moderation page; a person ends
   their own other sessions by changing their password.
 
+### Storage: what lives where
+| What | `STORE=pg` | `STORE=gcp` | `STORE=local` |
+| --- | --- | --- | --- |
+| Materials (the whole record: text, counts, embedding) | table `items` | collection `items` | `data/db.json` |
+| Votes | table `votes` | collection `votes` | `data/db.json` |
+| Accounts, hosted sites, other documents | table `docs` (`coll`, `id`) | collections `accounts`, `sites`, ... | `data/db.json` |
+| Daily caps (conversions, logos, search embeddings) | table `quotas` | documents `meta/quota-<day>` | `data/db.json` |
+| The list of stored files (owner, path, size, type, SHA-256, time) | table `files` | (none: the bucket is listed) | (none) |
+| File bytes | bucket, `items/<owner>/<path>` | bucket, `items/<owner>/<path>` | `data/files/` |
+
+With `STORE=pg`, PostgreSQL is the record of everything; the bucket holds bytes only (object storage costs about a
+tenth of database disk per GB and streams large files). `files` has one row per object: `owner` is a material's slug,
+or `_sites` / `_accounts` with the site or user name as the first folder of `path`. A file is written to the bucket
+first and to `files` second, and deleted in the same order, so a row always has its bytes. The tables are created
+when the server starts (`MIGRATIONS` in `server/store-pg.js`, version in table `schema_version`); nothing has to be
+run by hand, also not for later schema changes. Search and ranking read all materials into memory (one query, again
+every 20 seconds); the top of `store-pg.js` says where full-text and vector search would go.
+
+The database connection needs Node 22 or newer when it goes through the Cloud SQL connector (the image has 22).
+Each instance keeps at most `PG_POOL_MAX` (5) connections: instances x 5 must stay below the instance's connection
+limit (about 25 on the smallest machine, with three instances: 15, plus the migration job or a console session).
+
+Locally, without a server: `STORE=pg PG_TEST=pglite PGLITE_DIR=data/pglite PORT=8787 ADMIN_TOKEN=dev node server/index.js`
+runs on PGlite (PostgreSQL compiled to WebAssembly, a devDependency), as the tests do.
+
+### Move from Firestore to PostgreSQL
+`tools/migrate-to-postgres.mjs` copies every Firestore collection into the tables above and fills `files` from a
+listing of the bucket. File bytes are not copied or changed. It is part of the image and runs as a one-off Cloud Run
+job with the service's image, service account, network and secrets (the database has a private address only):
+```
+node tools/migrate-to-postgres.mjs --dry-run     # reads Firestore and the bucket, prints counts, writes nothing; says whether Postgres answers
+node tools/migrate-to-postgres.mjs               # copies (upserts), then prints the verification table
+node tools/migrate-to-postgres.mjs --prune       # the same, and removes rows that are gone at the source since an earlier run
+```
+Environment: `FIRESTORE_DB`, `BUCKET`, `CLOUDSQL_INSTANCE` (+ `CLOUDSQL_IP_TYPE`), `PGUSER`, `PGPASSWORD`, `PGDATABASE`.
+As a job, for example (the job is short-lived, so plain `gcloud`; network, subnet, service account and secret as for the service):
+```
+gcloud run jobs deploy commons-migrate --project cs-project-tvcmny79 --region us-central1 \
+  --image us-central1-docker.pkg.dev/cs-project-tvcmny79/apps/commons-web:<tag> \
+  --command node --args tools/migrate-to-postgres.mjs,--dry-run --max-retries 0 --task-timeout 30m \
+  --service-account <the service's account> --network <network> --subnet <subnet> --vpc-egress private-ranges-only \
+  --set-env-vars FIRESTORE_DB=commons,BUCKET=cs-project-tvcmny79-commons,CLOUDSQL_INSTANCE=<project:region:instance>,PGUSER=<user>,PGDATABASE=<database> \
+  --set-secrets PGPASSWORD=<secret>:latest
+gcloud run jobs execute commons-migrate --project cs-project-tvcmny79 --region us-central1 --wait                                          # the dry run
+gcloud run jobs execute commons-migrate --project cs-project-tvcmny79 --region us-central1 --wait --args tools/migrate-to-postgres.mjs     # the real run
+```
+The job's account needs to read Firestore (`roles/datastore.viewer`), list the bucket (`roles/storage.objectViewer`)
+and connect to the instance (`roles/cloudsql.client`). Everything it prints is plain lines in the job's log. The last
+lines are the verification: per collection the number of records at the source and in Postgres, and how many are
+missing, extra or different (every record is compared in full, materials field by field including the embedding).
+The job succeeds (exit status 0) only when all of them are identical; `verify RESULT OK` is the line to look for.
+
+- It can be repeated while the site still runs on Firestore: run it once to see it work, and once more (with
+  `--prune`, since drafts are swept and materials deleted in between) right before the switch. What is written to
+  Firestore after the last run is not in Postgres, so make the last run and the switch (`STORE=pg` and the settings
+  above, a new revision) close together, at a quiet time.
+- Once the site has written to Postgres, the tool refuses to run (it would put older data back); `--force` overrides.
+- Votes whose material no longer exists are left out and listed (`skipped ...`). File lists of materials that do not
+  match the bucket are listed as warnings; they exist today and are not changed.
+- `--sha256` reads every file once to fill the checksum column. Without it the column is empty for files that were
+  there before the move and filled for every file uploaded afterwards.
+- To go back before anything was written to Postgres: set `STORE=gcp` again. Firestore is not changed by the tool.
+
 ### Restore data
-- **Database (Firestore, point-in-time recovery, 7 days).** Read a document as it was:
+- **Database with `STORE=pg` (Cloud SQL: daily backups, and point-in-time recovery when it is switched on for the instance).**
+  The instance has no public address, so backups and exports are run by Cloud SQL itself, not with `pg_dump` from a laptop.
+  - A backup now, for example before a risky change: `gcloud sql backups create --instance <instance> --project cs-project-tvcmny79`.
+    List them with `gcloud sql backups list --instance <instance> --project cs-project-tvcmny79`.
+  - Look at the data as it was at some minute, without touching the live instance: clone it,
+    `gcloud sql instances clone <instance> <instance>-restore --point-in-time 2026-11-12T09:00:00Z --project cs-project-tvcmny79`,
+    then copy back what is needed, or point the site at the clone (`CLOUDSQL_INSTANCE`) and delete the old instance later.
+  - Put a whole backup back over the live instance (everything written since is lost):
+    `gcloud sql backups restore <backup id> --restore-instance <instance> --project cs-project-tvcmny79`.
+  - A portable copy (a plain SQL file in a bucket, readable by any PostgreSQL):
+    `gcloud sql export sql <instance> gs://<a bucket>/commons-$(date +%F).sql.gz --database <database> --project cs-project-tvcmny79`,
+    and back in with `gcloud sql import sql <instance> gs://<a bucket>/<file> --database <database>`. The instance's
+    own service account needs write access to that bucket.
+  - One material: its row in `items` (and `votes`, `files`) from the clone, and its files from the bucket's older versions (below).
+- **Database with `STORE=gcp` (Firestore, point-in-time recovery, 7 days).** Read a document as it was:
   `gcloud firestore export gs://<a bucket>/<folder> --database=commons --snapshot-time=2026-11-12T09:00:00Z --project cs-project-tvcmny79`
   writes the whole database as of that minute; import it into a new database to look at it
   (`gcloud firestore databases create --database=commons-restore --location=us-central1`, then
@@ -105,8 +190,8 @@ gcloud secrets versions disable <old version number> --secret commons-admin-toke
   and `gcloud storage cp gs://cs-project-tvcmny79-commons/items/<slug>/<file>#<generation> gs://cs-project-tvcmny79-commons/items/<slug>/<file>`
   puts one back. Materials are under `items/<slug>/`, hosted sites under `items/_sites/<name>/`, saved brand kits
   under `items/_accounts/<user name>/`.
-- A material needs both: its document (collection `items`) and its files. Votes are in `votes`, accounts in
-  `accounts`, hosted sites in `sites`.
+- A material needs both: its record (table or collection `items`) and its files. Votes are in `votes`; accounts and
+  hosted sites in the collections `accounts` and `sites`, with `STORE=pg` in table `docs` (`coll = 'accounts'`, `'sites'`).
 
 ### Logs and alerts
 - **Logs:** Cloud Console > Cloud Run > `commons-web` > Logs, or
@@ -127,3 +212,10 @@ gcloud secrets versions disable <old version number> --secret commons-admin-toke
   instance can take that long to show on another.
 - The Firestore and Cloud Storage code paths are not covered by the automated tests (they run against the local
   store); try a deploy on a new revision before relying on it.
+- The PostgreSQL store is covered: `npm run test:pg` runs every test against it, on PGlite (real PostgreSQL, but one
+  connection inside the test process). What that cannot show is the `pg` driver against a server, several
+  connections at once, and the Cloud SQL connection itself. `PG_TEST=server DATABASE_URL=postgres://... npm run test:pg:server`
+  runs the same tests against any PostgreSQL server (each test file in a schema of its own, dropped afterwards).
+- With `STORE=pg`, a write that fails because the database went away is not repeated (reads are, once): the visitor
+  gets an error and tries again. An instance that starts while the database is down starts anyway, answers 503 on
+  `/api/health` and recovers by itself.

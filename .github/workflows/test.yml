@@ -19,6 +19,8 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm test
+      # The same tests against the PostgreSQL store, on PGlite (PostgreSQL inside the test process).
+      - run: npm run test:pg
       # Known vulnerabilities in what is deployed. Reported, but a new advisory does not turn the tests red.
       - run: npm audit --omit=dev --audit-level=high
         continue-on-error: true
