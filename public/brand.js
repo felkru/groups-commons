@@ -107,9 +107,22 @@ export function getBrand() {
   }
   return brand;
 }
+// Leaving the example group: its own details (email, website, tagline, …) must not travel along under another
+// group's name. They are emptied unless the change brings its own values.
+const EXAMPLE_DETAILS = ['tagline', 'university', 'city', 'website', 'email', 'join_url'];
+function withoutExampleDetails(patch) {
+  const now = getBrand();
+  if (!isDefaultBrand(now) || !patch.group_name || patch.group_name === DEFAULT_BRAND.group_name) return patch;
+  const out = { ...patch };
+  for (const k of EXAMPLE_DETAILS) if (!(k in out) && now[k] === DEFAULT_BRAND[k]) out[k] = '';
+  return out;
+}
 export function setBrand(patch, fromPreset = false) {
   // Editing a kit by hand makes it the visitor's own kit.
-  if (!fromPreset) store.del('commons_brand_preset');
+  if (!fromPreset) {
+    store.del('commons_brand_preset');
+    patch = withoutExampleDetails(patch);
+  }
   const next = { ...getBrand(), ...patch };
   const diff = {};
   for (const k of Object.keys(DEFAULT_BRAND)) if (next[k] !== DEFAULT_BRAND[k]) diff[k] = next[k];

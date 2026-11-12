@@ -83,6 +83,8 @@ export async function brandPage(root) {
   root.addEventListener('input', (e) => {
     const k = e.target.dataset.k;
     if (k) refresh({ [k]: e.target.value });
+    // A new group name empties the example group's details; show that in the other fields too.
+    if (k === 'group_name') for (const el of $$('[data-k]', root)) if (el !== e.target && el.type !== 'color' && el.value !== brand[el.dataset.k]) el.value = brand[el.dataset.k];
     // A font applies once the name typed is a real Google Font.
     const f = e.target.dataset.font;
     if (f && findFont(e.target.value)) refresh({ [f]: findFont(e.target.value) });
