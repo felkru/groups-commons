@@ -135,6 +135,9 @@ export function dress(doc, brand, edits = {}, editable = false, photos = {}) {
     const href = key === 'email' ? `mailto:${v}` : key === 'instagram' ? `https://www.instagram.com/${v.replace(/^@/, '')}/` : /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`;
     a.setAttribute(a.hasAttribute('data-commons-href') ? 'data-commons-href' : 'href', href);
   }
+  // Wording that only fits the group the template came from (its legal form after the name, "e.V.") is left out
+  // under any other group's name.
+  for (const el of doc.querySelectorAll('[data-brand-own]')) el.toggleAttribute('hidden', !ownDetails);
   // Logo slots: <img data-logo> in HTML templates, <image data-logo> inside converted artwork.
   for (const img of doc.querySelectorAll('img[data-logo], image[data-logo]')) {
     const attr = photoAttr(img);
@@ -235,6 +238,7 @@ async function serialize(doc, mode) {
     el.removeAttribute('data-commons-fit');
   }
   if (mode === 'share') for (const img of copy.querySelectorAll('[data-logo-own]')) img.removeAttribute('data-logo-own');
+  if (mode === 'share') for (const el of copy.querySelectorAll('[data-brand-own]')) el.removeAttribute('hidden');
   const base = copy.querySelector('base[data-commons]')?.getAttribute('href');
   copy.querySelectorAll('[data-commons]').forEach((e) => e.remove());
   for (const el of copy.querySelectorAll('[contenteditable]')) {
