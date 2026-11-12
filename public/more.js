@@ -174,7 +174,7 @@ export async function leaderboardPage(root) {
     <section class="hero compact"><div><h1>Leaderboard</h1></div></section>
     <section class="panel pink">
       <h2>${esc(data.semester.label)}: most upvoted new material</h2>
-      <p style="margin:0;max-width:75ch">Every material added this semester takes part. The one with the most upvotes when the semester ends wins, and so does the group that collected the most upvotes on its new materials. ${plural(data.semester.days_left, 'day')} left. Prizes ${todo('not decided yet')}</p>
+      <p style="margin:0;max-width:75ch">Every material added this semester takes part. The one with the most upvotes when the semester ends wins, and so does the group that collected the most upvotes on its new materials. ${plural(data.semester.days_left, 'day')} left. <span style="white-space:nowrap">Prizes ${todo('not decided yet')}</span></p>
     </section>
     ${data.simulated ? '<div class="notice">Votes on the seed materials are simulated, so this board shows how a competition would look, not real standings.</div>' : ''}
     <div class="cols">

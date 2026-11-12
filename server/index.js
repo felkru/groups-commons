@@ -99,7 +99,9 @@ function view(item, req, full = false) {
   if (full) return out;
   delete out.description;
   if (out.variants) {
-    out.snippet = (item.variants[0].body || '').replace(/^\s*(#{1,6}|>|[-*+]|\d+[.)])\s+/gm, '').replace(/[*_`|]+/g, ' ').replace(/-{3,}/g, ' ').replace(/\s+/g, ' ').slice(0, 260);
+    out.snippet = (item.variants[0].body || '').replace(/^\s*(#{1,6}|>|[-*+]|\d+[.)])\s+/gm, '').replace(/[*_`|]+/g, ' ').replace(/-{3,}/g, ' ').replace(/\s+/g, ' ').trim();
+    // Cut at a word, never in the middle of one.
+    if (out.snippet.length > 260) out.snippet = out.snippet.slice(0, 261).replace(/\s+\S*$/, '').replace(/[\s,;:–-]+$/, '') + ' …';
     out.variants = item.variants.map(({ label, lang, channel }) => ({ label, lang, channel }));
   }
   if (out.kit) out.kit = { est_cost: item.kit.est_cost, count: item.kit.items.length, first: item.kit.items.slice(0, 5).map((k) => k.name) };
