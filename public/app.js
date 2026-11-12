@@ -26,9 +26,31 @@ const routes = [
   [/^\/moderate\/?$/, moderatePage, ''],
 ];
 
+// On phones the navigation folds away behind the Menu button in the header (styles.css shows the button there).
+const header = $('header.top');
+const menuBtn = $('#menu-btn');
+function setMenu(open) {
+  header.classList.toggle('open', open);
+  menuBtn.setAttribute('aria-expanded', String(open));
+}
+menuBtn.addEventListener('click', () => setMenu(!header.classList.contains('open')));
+header.addEventListener('click', (e) => {
+  if (e.target.closest('a, button') && !e.target.closest('#menu-btn')) setMenu(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') setMenu(false);
+});
+
+// A row that scrolls sideways on phones (filters, example kits) starts with its selected entry in view.
+function showSelected(row) {
+  const on = row?.querySelector('.on');
+  if (on && row.scrollWidth > row.clientWidth) row.scrollLeft = on.offsetLeft - row.offsetLeft - (row.clientWidth - on.offsetWidth) / 2;
+}
+
 async function render() {
   if (typeof cleanup === 'function') cleanup();
   cleanup = null;
+  setMenu(false);
   const path = location.pathname;
   const route = routes.find(([re]) => re.test(path));
   for (const a of $$('#nav a')) a.classList.toggle('on', !!route && a.dataset.nav === route[2]);
@@ -145,7 +167,7 @@ async function home(root) {
       <strong>${esc(brand.group_name)}</strong><span>${esc(brand.font_heading)} / ${esc(brand.font_body)}</span>
       <a href="/brand">Change brand kit</a>
     </div>
-    ${PRESETS.length > 1 ? `<div class="kits"><span class="small muted">See every template in another group’s real look:</span>${PRESETS.map((k) => `<button type="button" class="kit ${activePreset() === k.id ? 'on' : ''}" data-kit="${esc(k.id)}" title="${esc(`${k.group_name}: ${k.font_heading} / ${k.font_body}`)}"><span class="swatch" style="background:${esc(k.color)}"></span><span class="swatch" style="background:${esc(k.accent)}"></span>${esc(k.group_name)}</button>`).join('')}${hasOwnBrand() ? '<button type="button" class="kit" data-kit="">Back to my own kit</button>' : ''}</div>` : ''}
+    ${PRESETS.length > 1 ? `<div class="kits"><span class="small muted">See every template in another group’s real look:</span><div class="kitrow">${PRESETS.map((k) => `<button type="button" class="kit ${activePreset() === k.id ? 'on' : ''}" data-kit="${esc(k.id)}" title="${esc(`${k.group_name}: ${k.font_heading} / ${k.font_body}`)}"><span class="swatch" style="background:${esc(k.color)}"></span><span class="swatch" style="background:${esc(k.accent)}"></span>${esc(k.group_name)}</button>`).join('')}${hasOwnBrand() ? '<button type="button" class="kit" data-kit="">Back to my own kit</button>' : ''}</div></div>` : ''}
     <div id="results"><p class="loading">Loading materials…</p></div>`;
 
   root.addEventListener('click', (e) => {
@@ -155,6 +177,7 @@ async function home(root) {
     else restoreOwnBrand();
     go(location.pathname + location.search, true);
   });
+  showSelected($('.kitrow', root));
   const results = $('#results', root);
   let seq = 0;
   async function load() {
@@ -193,6 +216,7 @@ async function home(root) {
       ${!q && !cat && data.items.some((i) => i.featured) ? `<h2 class="rowtitle">Featured by moderators</h2><div class="grid">${data.items.filter((i) => i.featured).sort((a, b) => String(b.featured_at).localeCompare(String(a.featured_at))).slice(0, 3).map(card).join('')}</div><h2 class="rowtitle">All materials</h2>` : ''}
       ${data.items.length ? `<div class="grid">${data.items.map(card).join('')}</div>` : `<div class="empty"><h2>Nothing here yet</h2><p>${q ? 'No material matches that search.' : 'No materials in this category.'} If your group has one, <a href="/add">add it</a>.</p></div>`}`;
     watchPreviews(results);
+    showSelected($('.chips', results));
   }
   results.addEventListener('click', (e) => {
     const chip = e.target.closest('[data-cat]');

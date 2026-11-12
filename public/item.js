@@ -216,7 +216,7 @@ function kitTool(tool, item) {
         </div>
         <table class="kit">
           <thead><tr><th></th><th>Item</th><th>Qty</th><th>Why / tip</th><th></th></tr></thead>
-          <tbody>${rows.map((r, i) => `<tr class="${done.has(i) ? 'done' : ''}"><td><input type="checkbox" data-i="${i}" ${done.has(i) ? 'checked' : ''} aria-label="Packed"></td><td class="name"><strong>${esc(r.name)}</strong></td><td>${esc(r.qty || '')}</td><td class="note">${esc(r.note || '')}${shortcuts(r)}</td><td>${r.url ? `<a class="btn small" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" data-use>Buy ↗</a>` : ''}</td></tr>`).join('')}</tbody>
+          <tbody>${rows.map((r, i) => `<tr class="${done.has(i) ? 'done' : ''}"><td><label class="check"><input type="checkbox" data-i="${i}" ${done.has(i) ? 'checked' : ''} aria-label="Packed"></label></td><td class="name"><strong>${esc(r.name)}</strong></td><td>${esc(r.qty || '')}</td><td class="note">${esc(r.note || '')}${shortcuts(r)}</td><td>${r.url ? `<a class="btn small" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" data-use>Buy ↗</a>` : ''}</td></tr>`).join('')}</tbody>
         </table>
         <p class="hint">Ticks are saved in this browser. Buy links are examples; check price and delivery time yourself. Order emails are filled in from your <a href="/brand">brand kit</a>.</p>
       </section>`;
