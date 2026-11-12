@@ -10,6 +10,14 @@ import { $, $$, KIND, SOURCE, bytes, cmd, copy, countUse, download, esc, plural,
 const IMG = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
 const extOf = (p) => (/\.([a-z0-9]+)$/i.exec(p)?.[1] || '').toLowerCase();
 
+// A text cut to a length at a word boundary (for suggested titles).
+const shorten = (text, max) => {
+  const t = String(text || '').trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max + 1);
+  return (cut.lastIndexOf(' ') > max * 0.5 ? cut.slice(0, cut.lastIndexOf(' ')) : t.slice(0, max)).replace(/[\s,:;.–-]+$/, '');
+};
+
 export async function itemPage(root, [slug]) {
   const item = await api(`/items/${slug}`);
   state.currentItem = item;
@@ -124,7 +132,7 @@ async function templateTool(tool, item) {
       <form method="dialog" class="form">
         <h2>Share your version</h2>
         <p class="small muted">Your text edits are published as a new template that links back to the original. Other groups can re-brand it like any other template. It appears after a moderator has approved it.</p>
-        <label>Title<input name="title" maxlength="90" required value="${esc(`${item.title.slice(0, 44)} (${brand.group_name.slice(0, 34)} version)`)}"></label>
+        <label>Title<input name="title" maxlength="90" required value="${esc(`${shorten(item.title, 44)} (${shorten(brand.group_name, 34)} version)`)}"></label>
         <label>Your group<input name="group" maxlength="80" required value="${esc(brand.group_name)}"></label>
         <label>What did you change, and when does it work well?<textarea name="summary" maxlength="400" required></textarea></label>
         <p class="err" data-err></p>
