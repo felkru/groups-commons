@@ -18,6 +18,8 @@ COPY public ./public
 COPY cli ./cli
 COPY skill ./skill
 COPY docs ./docs
+# The one-off move from Firestore to PostgreSQL runs as a job on this image: node tools/migrate-to-postgres.mjs
+COPY tools/migrate-to-postgres.mjs ./tools/
 
 USER node
 ENV PORT=8080

@@ -1,5 +1,10 @@
 // Shared by the tests: starts the app on a free port with the local store in a temporary folder, and small
 // helpers for talking to it. Each test file runs in its own process (node --test), so each gets its own app.
+//
+// `npm run test:pg` runs the same tests against the PostgreSQL store (server/store-pg.js):
+//   PG_TEST=pglite   PGlite, PostgreSQL inside the test process; nothing to install or start
+//   PG_TEST=server   a real server, from DATABASE_URL or PGHOST / PGUSER / PGPASSWORD / PGDATABASE. Each test file
+//                    works in a schema of its own (test_...) and drops it at the end.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,9 +13,24 @@ import zlib from 'node:zlib';
 
 export const ADMIN = 'test-moderator-token';
 
+export const PG_TEST = process.env.PG_TEST || '';
+// Points the environment at the store under test, with its data below `dir`.
+export function useTestStore(dir, { keep = false } = {}) {
+  Object.assign(process.env, { STORE: PG_TEST ? 'pg' : 'local', DATA_DIR: dir });
+  delete process.env.BUCKET; // file bytes go to the folder, never to a real bucket
+  delete process.env.PGLITE_DIR;
+  if (PG_TEST === 'pglite' && keep) process.env.PGLITE_DIR = path.join(dir, 'pglite'); // on disk, so it can be reopened
+  if (PG_TEST === 'server') process.env.PG_SCHEMA = `test_${process.pid}_${Date.now().toString(36)}`;
+}
+// Removes what a test left on a real server. Call it before the store is closed.
+export async function dropTestStore(store) {
+  if (PG_TEST === 'server') await store.db.query(`DROP SCHEMA IF EXISTS ${process.env.PG_SCHEMA} CASCADE`);
+}
+
 export async function startApp(env = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'commons-test-'));
-  Object.assign(process.env, { STORE: 'local', DATA_DIR: dir, ADMIN_TOKEN: ADMIN, SESSION_SECRET: 'test-session-secret', LOG_FORMAT: 'text', ...env });
+  useTestStore(dir);
+  Object.assign(process.env, { ADMIN_TOKEN: ADMIN, SESSION_SECRET: 'test-session-secret', LOG_FORMAT: 'text', ...env });
   delete process.env.VERTEX;
   delete process.env.PUBLIC_URL;
   const mod = await import('../server/index.js');
@@ -21,6 +41,7 @@ export async function startApp(env = {}) {
     dir,
     store: mod.store,
     async stop() {
+      await dropTestStore(mod.store);
       await running.close();
       fs.rmSync(dir, { recursive: true, force: true });
     },

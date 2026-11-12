@@ -1,4 +1,5 @@
 // The local store and the small in-memory helpers, without the HTTP server.
+// With PG_TEST set (npm run test:pg) the same store tests run against the PostgreSQL store.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -10,15 +11,16 @@ process.env.SESSION_SECRET = 'unit-test-secret';
 const { checkFileKey, checkPassword, fileKey, hashPassword, sessions, sign, throttle, verify } = await import('../server/accounts.js');
 const { addressKey, boundedMap, isOurs, publicError, sweepDrafts, DRAFT_MAX_AGE_MS } = await import('../server/ops.js');
 const { openStore } = await import('../server/store.js');
+const { PG_TEST, dropTestStore, useTestStore } = await import('./helper.js');
 
 let dir, store;
 before(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'commons-store-'));
-  process.env.STORE = 'local';
-  process.env.DATA_DIR = dir;
+  useTestStore(dir, { keep: true });
   store = await openStore();
 });
 after(async () => {
+  await dropTestStore(store);
   await store.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -77,6 +79,7 @@ describe('local store', () => {
     assert.ok(!fs.existsSync(path.join(dir, 'db.json.tmp')));
     const again = await openStore();
     assert.equal((await again.getItem('kept')).up, 3);
+    if (PG_TEST) store = again; // a closed connection pool stays closed; the local store can be used again
     await store.ping();
   });
   test('takeQuota stops at the limit', async () => {

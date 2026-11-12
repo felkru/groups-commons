@@ -1,7 +1,8 @@
 // Storage backends. STORE=local keeps everything under ./data (development and tests);
-// STORE=gcp uses Firestore (named database) for items and votes and a Cloud Storage bucket for files.
+// STORE=gcp uses Firestore (named database) for items and votes and a Cloud Storage bucket for files;
+// STORE=pg uses PostgreSQL for everything structured and a bucket (or a local folder) for file bytes: see store-pg.js.
 //
-// Both expose the same async interface:
+// All expose the same async interface:
 //   allItems() getItem(slug) putItem(item) deleteItem(slug)
 //   patchItem(slug, patch) -> the item, or null when it does not exist (any more)
 //   putFile(slug, path, buffer, contentType) readFile(slug, path) -> Buffer|null
@@ -13,9 +14,9 @@
 //   ping() resolves when the store answers   close() flushes pending writes
 
 import fs from 'node:fs';
-import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { BucketFiles, FolderFiles } from './files.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const today = () => new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -28,7 +29,7 @@ class LocalStore {
     this.dir = dir;
     this.dbPath = path.join(dir, 'db.json');
     this.filesDir = path.join(dir, 'files');
-    fs.mkdirSync(this.filesDir, { recursive: true });
+    this.files = new FolderFiles(this.filesDir);
     this.db = { items: {}, votes: {}, quota: {}, docs: {} };
     if (fs.existsSync(this.dbPath)) this.db = { ...this.db, ...JSON.parse(fs.readFileSync(this.dbPath, 'utf8')) };
   }
@@ -53,13 +54,7 @@ class LocalStore {
     this.flush();
   }
   async ping() {
-    await fsp.access(this.filesDir);
-  }
-  // Paths are validated by the routes; this is the second lock on the door.
-  full(slug, p = '') {
-    const full = path.join(this.filesDir, slug, p);
-    if (!slug || full === this.filesDir || !full.startsWith(this.filesDir + path.sep)) throw new Error(`path outside the store: ${slug}/${p}`);
-    return full;
+    await this.files.ping();
   }
   async allItems() {
     return Object.values(this.db.items);
@@ -81,36 +76,24 @@ class LocalStore {
   async deleteItem(slug) {
     if (Object.hasOwn(this.db.items, slug)) delete this.db.items[slug];
     for (const k of Object.keys(this.db.votes)) if (k.startsWith(slug + '__')) delete this.db.votes[k];
-    await fsp.rm(this.full(slug), { recursive: true, force: true });
+    await this.files.deleteAll(slug);
     this.save();
   }
-  async putFile(slug, p, buffer) {
-    const full = this.full(slug, p);
-    await fsp.mkdir(path.dirname(full), { recursive: true });
-    await fsp.writeFile(full, buffer);
+  // The bytes live in a folder: see FolderFiles in files.js.
+  putFile(slug, p, buffer) {
+    return this.files.putFile(slug, p, buffer);
   }
-  async readFile(slug, p) {
-    try {
-      return await fsp.readFile(this.full(slug, p));
-    } catch {
-      return null;
-    }
+  readFile(slug, p) {
+    return this.files.readFile(slug, p);
   }
-  async fileStream(slug, p) {
-    const full = this.full(slug, p);
-    if (!fs.existsSync(full) || !fs.statSync(full).isFile()) return null;
-    return fs.createReadStream(full);
+  fileStream(slug, p) {
+    return this.files.fileStream(slug, p);
   }
-  // Removes one file, or everything below a folder when the prefix ends in "/".
-  async deleteFiles(slug, prefix) {
-    if (!prefix) throw new Error('deleteFiles needs a prefix');
-    await fsp.rm(this.full(slug, prefix), { recursive: true, force: true });
+  deleteFiles(slug, prefix) {
+    return this.files.deleteFiles(slug, prefix);
   }
-  async copyFiles(from, to, paths) {
-    for (const p of paths) {
-      const buf = await this.readFile(from, p);
-      if (buf) await this.putFile(to, p, buf);
-    }
+  copyFiles(from, to, paths) {
+    return this.files.copyFiles(from, to, paths);
   }
   async vote(slug, clientId, dir) {
     const item = own(this.db.items, slug);
@@ -170,13 +153,12 @@ class LocalStore {
 class GcpStore {
   async init() {
     const { Firestore, FieldValue } = await import('@google-cloud/firestore');
-    const { Storage } = await import('@google-cloud/storage');
     this.FieldValue = FieldValue;
     this.db = new Firestore({ databaseId: process.env.FIRESTORE_DB || 'commons', ignoreUndefinedProperties: true });
     this.items = this.db.collection('items');
     this.votes = this.db.collection('votes');
     this.meta = this.db.collection('meta');
-    this.bucket = new Storage().bucket(process.env.BUCKET);
+    this.files = await new BucketFiles().init(process.env.BUCKET);
     this.cache = new Map();
     this.loadedAt = 0;
     this.ready = false;
@@ -237,35 +219,29 @@ class GcpStore {
       for (const d of votes.docs.slice(i, i + 400)) batch.delete(d.ref);
       await batch.commit();
     }
-    await this.bucket.deleteFiles({ prefix: `items/${slug}/`, force: true });
-  }
-  async deleteFiles(slug, prefix) {
-    if (!prefix) throw new Error('deleteFiles needs a prefix');
-    if (prefix.endsWith('/')) await this.bucket.deleteFiles({ prefix: `items/${slug}/${prefix}`, force: true });
-    else await this.bucket.file(`items/${slug}/${prefix}`).delete({ ignoreNotFound: true });
+    await this.files.deleteAll(slug);
   }
   async ping() {
-    await Promise.all([this.meta.doc('health').get(), this.bucket.getFiles({ maxResults: 1, autoPaginate: false })]);
+    await Promise.all([this.meta.doc('health').get(), this.files.ping()]);
   }
   async close() {
     await this.db.terminate();
   }
-  async putFile(slug, p, buffer, contentType) {
-    await this.bucket.file(`items/${slug}/${p}`).save(buffer, { resumable: false, contentType, metadata: { cacheControl: 'public, max-age=300' } });
+  // The bytes live in the bucket: see BucketFiles in files.js.
+  putFile(slug, p, buffer, contentType) {
+    return this.files.putFile(slug, p, buffer, contentType);
   }
-  async readFile(slug, p) {
-    try {
-      const [buf] = await this.bucket.file(`items/${slug}/${p}`).download();
-      return buf;
-    } catch {
-      return null;
-    }
+  readFile(slug, p) {
+    return this.files.readFile(slug, p);
   }
-  async fileStream(slug, p) {
-    return this.bucket.file(`items/${slug}/${p}`).createReadStream();
+  fileStream(slug, p) {
+    return this.files.fileStream(slug, p);
   }
-  async copyFiles(from, to, paths) {
-    await Promise.all(paths.map((p) => this.bucket.file(`items/${from}/${p}`).copy(this.bucket.file(`items/${to}/${p}`))));
+  deleteFiles(slug, prefix) {
+    return this.files.deleteFiles(slug, prefix);
+  }
+  copyFiles(from, to, paths) {
+    return this.files.copyFiles(from, to, paths);
   }
   async vote(slug, clientId, dir) {
     const vref = this.votes.doc(`${slug}__${clientId}`);
@@ -331,6 +307,8 @@ class GcpStore {
 }
 
 export async function openStore() {
-  if ((process.env.STORE || 'local') === 'gcp') return new GcpStore().init();
+  const kind = process.env.STORE || 'local';
+  if (kind === 'gcp') return new GcpStore().init();
+  if (kind === 'pg') return (await import('./store-pg.js')).openPgStore();
   return new LocalStore(process.env.DATA_DIR || path.join(ROOT, 'data'));
 }
