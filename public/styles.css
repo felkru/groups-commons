@@ -192,7 +192,8 @@ span.filled { background: #e8f3e4; border-radius: 4px; padding: 0 2px; }
 
 /* text tool */
 .texttool { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 20px; align-items: start; }
-@media (max-width: 860px) { .texttool { grid-template-columns: 1fr; } }
+/* One column: the message itself comes first, the blanks to fill in follow below it. */
+@media (max-width: 860px) { .texttool { grid-template-columns: 1fr; } .texttool .fields { order: 2; } }
 .fields label { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 0 0 9px; }
 .fields input, .fields textarea, .form input, .form select, .form textarea { display: block; width: 100%; margin-top: 3px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; background: #fff; font-size: 14.5px; font-weight: 400; color: var(--ink); }
 .fields input:focus, .form input:focus, .form select:focus, .form textarea:focus { outline: 2px solid var(--pink-b); border-color: var(--red); }
