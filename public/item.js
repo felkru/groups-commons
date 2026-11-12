@@ -131,7 +131,9 @@ async function templateTool(tool, item) {
         <div class="row"><button class="btn primary" value="ok">Publish my version</button><button class="btn" value="cancel" formnovalidate>Cancel</button></div>
       </form>
     </dialog>`;
-  const editor = mountEditor($('.stage', tool), { html: await fetchTemplate(item), base: fileBase(item.slug), storageKey: `commons_fork_${item.slug}`, onError: toast });
+  // The pickers show the colours the template really has (with the untouched example kit: the template's own).
+  const showColours = (now) => { for (const input of tool.querySelectorAll('input[data-color]')) if (now[input.dataset.color]) input.value = now[input.dataset.color]; };
+  const editor = mountEditor($('.stage', tool), { html: await fetchTemplate(item), base: fileBase(item.slug), storageKey: `commons_fork_${item.slug}`, onError: toast, onReady: showColours });
   const dialog = $('#share', tool);
 
   tool.addEventListener('input', (e) => {

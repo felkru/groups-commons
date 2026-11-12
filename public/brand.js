@@ -179,14 +179,21 @@ export function fontsUrl(brand) {
   const fam = [...new Set([brand.font_heading, brand.font_body])].map((f) => `${f.replace(/ /g, '+')}:400,500,600,700,800`).join('|');
   return `https://fonts.googleapis.com/css?family=${fam}&display=swap`;
 }
-// The example group's untouched kit does not override fonts: its templates then show the fonts they were printed in.
-const keepsOwnFonts = (brand) => isDefaultBrand(brand) && brand.font_heading === DEFAULT_BRAND.font_heading && brand.font_body === DEFAULT_BRAND.font_body;
+// The example group's untouched kit overrides nothing: its templates then show the colours and fonts they were
+// printed in (the roll-up banner is dark blue, the flyer violet with white text). A value the visitor changed is
+// applied, and so is every value of any other group's kit.
+export const BRAND_VAR_NAMES = ['--brand-color', '--brand-accent', '--brand-dark', '--brand-light', '--brand-on-color', '--brand-on-accent', '--brand-font-heading', '--brand-font-body'];
 export function brandVars(brand) {
   const vars = allBrandVars(brand);
-  if (keepsOwnFonts(brand)) {
+  if (!isDefaultBrand(brand)) return vars;
+  const same = (k) => brand[k] === DEFAULT_BRAND[k];
+  if (same('font_heading') && same('font_body')) {
     delete vars['--brand-font-heading'];
     delete vars['--brand-font-body'];
   }
+  for (const k of ['color', 'accent', 'dark', 'light']) if (same(k)) delete vars[`--brand-${k}`];
+  if (same('color') && same('dark')) delete vars['--brand-on-color'];
+  if (same('accent') && same('dark')) delete vars['--brand-on-accent'];
   return vars;
 }
 function allBrandVars(brand) {

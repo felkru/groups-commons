@@ -3,7 +3,7 @@
 // brand kit, makes the marked text editable in place and prints it to PDF.
 
 import { fileBase, filePath, store } from './api.js';
-import { brandVars, fontsUrl, getBrand, isDefaultBrand, logoFor, qrDataUri } from './brand.js';
+import { BRAND_VAR_NAMES, brandVars, fontsUrl, getBrand, isDefaultBrand, logoFor, qrDataUri } from './brand.js';
 
 const QR_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='white'/%3E%3Cpath d='M8 8h28v28H8zM64 8h28v28H64zM8 64h28v28H8z' fill='none' stroke='%23252627' stroke-width='8'/%3E%3Ctext x='50' y='56' font-family='sans-serif' font-size='12' text-anchor='middle' fill='%23252627'%3EQR%3C/text%3E%3C/svg%3E";
@@ -110,7 +110,7 @@ export function dress(doc, brand, edits = {}, editable = false, photos = {}) {
   }
   const vars = brandVars(brand);
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
-  for (const k of ['--brand-font-heading', '--brand-font-body']) if (!(k in vars)) root.style.removeProperty(k);
+  for (const k of BRAND_VAR_NAMES) if (!(k in vars)) root.style.removeProperty(k);
   let fonts = doc.querySelector('link[data-commons-fonts]');
   if (!fonts) {
     fonts = doc.createElement('link');
@@ -338,6 +338,14 @@ export function mountEditor(stage, opts) {
     } catch {}
     fit();
     doc.fonts?.ready.then(fit).catch(() => {});
+    opts.onReady?.(colours());
+  };
+  // The colours the template shows right now (its own, or the kit's): what the colour pickers should display.
+  const colours = () => {
+    const doc = frame.contentDocument;
+    const cs = doc && doc.defaultView.getComputedStyle(doc.documentElement);
+    const hex = (name) => { const v = cs ? cs.getPropertyValue(name).trim().toLowerCase() : ''; return /^#[0-9a-f]{6}$/.test(v) ? v : /^#[0-9a-f]{3}$/.test(v) ? '#' + [...v.slice(1)].map((c) => c + c).join('') : ''; };
+    return { color: hex('--brand-color'), accent: hex('--brand-accent') };
   };
   whenParsed(frame, start);
   frame.addEventListener('load', start);
