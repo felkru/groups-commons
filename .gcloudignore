@@ -1,0 +1,13 @@
+# What is left out of the build upload. Unlike .gitignore, the intro video stays in: it is part of the site,
+# but it shows members of the example group and is therefore not in the public repository.
+.git/
+.github/
+node_modules/
+data/
+seed/
+test/
+.env
+.env.*
+*.log
+.DS_Store
+.commons.json

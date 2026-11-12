@@ -1,0 +1,46 @@
+{
+  "duration": 54,
+  "title_sub": "A real Claude session, working from what other student groups made.",
+  "todo_title": "First: a marketing to-do list, counting back from the event",
+  "todo": [
+    ["Thu 12 Nov", "Email 5 to 8 lecturers for a five-minute slot in their lecture"],
+    ["Mon 16 Nov", "Order flyers and posters · invitation to the mailing list · Instagram post 1"],
+    ["Thu 19 Nov", "Follow up with lecturers · ask admins of course chat groups"],
+    ["Mon 23 Nov", "Hang the posters · lecture pitches start, flyers at each exit"],
+    ["Thu 26 Nov", "Instagram post 2 · post in course and first-year chats"],
+    ["Mon 30 Nov", "Flyers in front of the canteen at lunch · Instagram post 3"],
+    ["Wed 2 Dec", "Reminder email · print door signs and screen slides"],
+    ["Thu 3 Dec", "The intro evening, 18:30, lecture hall 2"],
+    ["Fri 4 Dec", "Follow-up email with the next date"]
+  ],
+  "todo_captions": [[0, "The order follows what worked best for other groups"]],
+  "results_title": "Then the printables, in the group’s own look",
+  "items": [
+    { "label": "Poster · A3", "img": "poster.png", "x": 50, "y": 92, "h": 500 },
+    { "label": "Instagram post · 1 of 3", "img": "insta.png", "x": 440, "y": 92, "h": 330 },
+    { "label": "Tri-fold flyer · outside", "img": "flyer.png", "x": 740, "y": 92, "w": 490 },
+    { "label": "Slides for the screen · 1 of 10", "img": "slide.png", "x": 440, "y": 476, "w": 330 },
+    { "label": "Door sign", "img": "sign.png", "x": 810, "y": 476, "w": 262 }
+  ],
+  "result_captions": [],
+  "msgs_title": "And the texts for every channel",
+  "cards": [
+    { "label": "Email to lecturers · adapted from a real request", "text": "Subject: Five minutes before or after [Course] for a student group?\n\nDear Professor [Last name],\n\nI represent AI Safety Nordhaven, a student group at Nordhaven University that deals with the safe development of AI systems. On Thursday 3 December at 18:30 we are holding an intro evening in lecture hall 2, open to students of every subject…" },
+    { "label": "Invitation to the mailing list", "text": "Subject: Intro evening on Thu 3 Dec: what is AI safety?\n\nHi,\n\nare you interested in how we can design AI responsibly and safely? Then come to our intro evening:\n\nThursday 3 December, 18:30, lecture hall 2\n\nYou do not need any prior knowledge, and students of every subject are welcome." },
+    { "label": "Group chat · WhatsApp", "chat": true, "text": "Hi everyone 👋\n\nWe are holding an intro evening for people who are new to AI safety:\n\n*Thursday 3 December, 18:30, lecture hall 2*\n\nA short talk, time for questions, and snacks and a chat afterwards. No prior knowledge needed, every subject welcome, in English." },
+    { "label": "Instagram caption · post 1", "text": "You don't need every answer. Curiosity is enough.\n\nCome to our intro evening:\n📅 Thursday 3 December, 18:30\n📍 Lecture hall 2, Nordhaven University\n\nA short talk on what AI safety is, time for your questions, and snacks and a chat afterwards." }
+  ],
+  "msg_captions": [[0, "Claude says which lines come from other groups and which are new"]],
+  "claim_title": "Human copy. Human taste. <em>Real events.</em>",
+  "claim_sub": "The commons holds what student groups wrote, designed and used at their own events. Claude only fits it to yours.",
+  "end_sub": "One click opens Claude. It asks about your event and what you already have.",
+  "scenes": { "title": [0, 2.6], "term": [2.4, 21.6], "todo": [21.4, 29.0], "results": [28.8, 37.6], "msgs": [37.4, 45.2], "claim": [45.0, 50.2], "end": [50.0, 54] },
+  "map": [[2.4, 3.6], [6.6, 14.0], [20.6, 417.0]],
+  "term_captions": [
+    [2.4, "Ask in one sentence."],
+    [6.7, "Claude knows the group from its memory file <small>real session, 29× speed</small>"],
+    [10.5, "It searches the commons: what other groups made and used <small>real session, 29× speed</small>"],
+    [15.2, "…and fits it to this group and this event <small>real session, 29× speed</small>"],
+    [19.4, "Seven minutes later: the whole pack <small>real session, 29× speed</small>"]
+  ]
+}

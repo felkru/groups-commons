@@ -1,0 +1,345 @@
+#!/usr/bin/env bash
+#
+# Groups Commons: connect your AI coding agent to the shared library of organizing materials.
+# For macOS, Linux and WSL. Served by __COMMONS_URL__
+#
+# This copy was written for these answers:
+__REQUEST__
+#
+# What it does, in this order, telling you each step and how it went:
+#   1. Looks for the agent. If it is missing and installing was asked for: Claude Code through its official
+#      installer (https://claude.ai/install.sh), Codex through "npm install -g @openai/codex".
+#   2. Connects the agent to the commons (an MCP server at __COMMONS_URL__/mcp).
+#   3. If asked for: saves the Claude Code skill to ~/.claude/skills/commons/SKILL.md.
+#   4. If asked for: saves the "commons" command line tool to ~/.local/bin/commons (needs Node.js 18 or newer).
+#   5. If group details came along: shows them and ASKS before adding them to the agent's memory file
+#      (~/.claude/CLAUDE.md or ~/.codex/AGENTS.md), between two marker lines so that a later run replaces them.
+#
+# What it never does: use sudo or ask for a password, change your shell configuration, or send anything about you
+# anywhere. Running it again is safe: it replaces its own earlier work and nothing else.
+#
+# Group details are kept below as base64 text (MEMORY_B64) and are only ever shown or written as text, never
+# run. To read them yourself:  printf '%s' '<the value>' | base64 --decode
+# Unattended use: set COMMONS_SETUP_MEMORY=yes (or no) to answer the memory question in advance.
+
+# ---- small helpers ----
+say() { printf '%s\n' "$*"; }
+step() { printf '\n==> %s\n' "$*"; }
+info() { printf '    %s\n' "$*"; }
+result() { SUMMARY="${SUMMARY}  $*
+"; }
+failed() { FAILED=1; result "[problem] $*"; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# Download $1 to $2 through a temporary file, so that a failed download never leaves a broken file behind.
+fetch() {
+  _tmp="$2.download.$$"
+  if curl -fsSL "$1" -o "$_tmp" </dev/null && [ -s "$_tmp" ]; then
+    mv -f "$_tmp" "$2"
+  else
+    rm -f "$_tmp"
+    return 1
+  fi
+}
+
+decode_b64() {
+  printf '%s' "$1" | base64 --decode 2>/dev/null && return 0
+  printf '%s' "$1" | base64 -d 2>/dev/null && return 0
+  printf '%s\n' "$1" | openssl base64 -d -A 2>/dev/null
+}
+
+# Asks a yes/no question. This script usually arrives through a pipe (curl ... | bash), so the answer is read
+# from the terminal (/dev/tty), not from standard input. Returns 0 = yes, 1 = no, 2 = there is nobody to ask.
+ask_yes_no() {
+  case "${COMMONS_SETUP_MEMORY:-}" in
+    yes) return 0 ;;
+    no) return 1 ;;
+  esac
+  ( : </dev/tty ) 2>/dev/null || return 2
+  ( : >/dev/tty ) 2>/dev/null || return 2
+  printf '    %s [y/N] ' "$1" >/dev/tty
+  _answer=''
+  IFS= read -r _answer </dev/tty || return 2
+  case "$_answer" in
+    y | Y | yes | Yes | YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# ---- 1 and 2: the agents ----
+setup_claude() {
+  step "Claude Code"
+  if have claude; then
+    info "Found: $(command -v claude)"
+  elif [ "$INSTALL_AGENT" = 1 ]; then
+    info "Not installed yet. Installing it with the official installer (https://claude.ai/install.sh) ..."
+    _installer=$(mktemp "${TMPDIR:-/tmp}/claude-install.XXXXXX") || return 1
+    if curl -fsSL https://claude.ai/install.sh -o "$_installer" </dev/null && [ -s "$_installer" ]; then
+      bash "$_installer" </dev/null
+    else
+      info "Could not download the installer."
+    fi
+    rm -f "$_installer"
+    hash -r 2>/dev/null
+    if have claude; then
+      info "Installed: $(command -v claude)"
+      result "[done] Claude Code installed"
+    else
+      info "Claude Code is still missing. Install it by hand (https://claude.com/claude-code), then run this command again."
+      failed "Claude Code could not be installed (https://claude.com/claude-code)"
+      return 1
+    fi
+  else
+    info "Not installed. Get it at https://claude.com/claude-code, then run this command again to connect it."
+    result "[skipped] Claude Code is not installed (https://claude.com/claude-code)"
+    return 1
+  fi
+
+  info "Connecting it to the commons ..."
+  claude mcp remove commons -s user </dev/null >/dev/null 2>&1
+  if _out=$(claude mcp add --transport http -s user commons "$COMMONS_URL/mcp" </dev/null 2>&1); then
+    info "Connected. Claude Code can now search the commons and prepare materials for your group."
+    result "[done] Claude Code is connected to the commons"
+  else
+    info "That did not work. Claude Code answered:"
+    printf '%s\n' "$_out" | sed 's/^/      /'
+    info "To try by hand: claude mcp add --transport http -s user commons $COMMONS_URL/mcp"
+    failed "Claude Code could not be connected to the commons"
+    return 1
+  fi
+}
+
+# npm's own folder for programs is not always on the PATH; look there too before calling Codex missing.
+look_in_npm_folder() {
+  have codex && return 0
+  have npm || return 1
+  _npm_bin="$(npm prefix -g </dev/null 2>/dev/null)/bin"
+  [ -x "$_npm_bin/codex" ] && PATH="$PATH:$_npm_bin"
+  have codex
+}
+
+setup_codex() {
+  step "Codex"
+  if look_in_npm_folder; then
+    info "Found: $(command -v codex)"
+  elif [ "$INSTALL_AGENT" = 1 ]; then
+    if ! have npm; then
+      info "Not installed, and it cannot be installed yet: Codex comes through npm, which is part of Node.js,"
+      info "and Node.js is not on this computer. Install Node.js (https://nodejs.org), then run this command again."
+      failed "Codex needs Node.js first (https://nodejs.org)"
+      return 1
+    fi
+    info "Not installed yet. Installing it with: npm install -g @openai/codex"
+    npm install -g @openai/codex </dev/null
+    hash -r 2>/dev/null
+    if look_in_npm_folder; then
+      info "Installed: $(command -v codex)"
+      result "[done] Codex installed"
+    else
+      info "npm could not install it. A common reason: the global npm folder needs administrator rights,"
+      info "which this script never uses. Other ways to install it: https://github.com/openai/codex"
+      failed "Codex could not be installed (https://github.com/openai/codex)"
+      return 1
+    fi
+  else
+    info "Not installed. Get it at https://github.com/openai/codex, then run this command again to connect it."
+    result "[skipped] Codex is not installed (https://github.com/openai/codex)"
+    return 1
+  fi
+
+  info "Connecting it to the commons ..."
+  codex mcp remove commons </dev/null >/dev/null 2>&1
+  if _out=$(codex mcp add commons --url "$COMMONS_URL/mcp" </dev/null 2>&1); then
+    info "Connected. Codex can now search the commons and prepare materials for your group."
+    result "[done] Codex is connected to the commons"
+  else
+    info "That did not work. Codex answered:"
+    printf '%s\n' "$_out" | sed 's/^/      /'
+    info "To try by hand: codex mcp add commons --url $COMMONS_URL/mcp"
+    failed "Codex could not be connected to the commons"
+    return 1
+  fi
+}
+
+# ---- 3: the Claude Code skill ----
+setup_skill() {
+  step "Claude Code skill"
+  _dir="$HOME/.claude/skills/commons"
+  if mkdir -p "$_dir" && fetch "$COMMONS_URL/cli/SKILL.md" "$_dir/SKILL.md"; then
+    info "Saved: $_dir/SKILL.md"
+    info "With it, Claude Code looks in the commons before it designs a flyer or writes an invitation from scratch."
+    result "[done] Claude Code skill saved"
+  else
+    info "Could not download $COMMONS_URL/cli/SKILL.md"
+    failed "The Claude Code skill could not be downloaded"
+  fi
+}
+
+# ---- 4: the command line tool ----
+setup_cli() {
+  step "The commons command line tool"
+  if ! have node; then
+    info "Skipped: it needs Node.js 18 or newer, and Node.js is not on this computer."
+    info "Your agent can still use the commons through the connection above. For the tool, which is what"
+    info "uploads whole folders, install Node.js (https://nodejs.org) and run this command again."
+    result "[skipped] The commons command line tool needs Node.js (https://nodejs.org)"
+    return 0
+  fi
+  if ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)' </dev/null 2>/dev/null; then
+    info "Skipped: it needs Node.js 18 or newer, and this computer has $(node --version 2>/dev/null </dev/null)."
+    result "[skipped] The commons command line tool needs Node.js 18 or newer"
+    return 0
+  fi
+  if mkdir -p "$BIN_DIR" && fetch "$COMMONS_URL/cli/commons.mjs" "$BIN_DIR/commons" && chmod +x "$BIN_DIR/commons"; then
+    info "Saved: $BIN_DIR/commons"
+    result "[done] commons command line tool saved to $BIN_DIR/commons"
+  else
+    info "Could not download $COMMONS_URL/cli/commons.mjs"
+    failed "The commons command line tool could not be downloaded"
+    return 0
+  fi
+  case ":$ORIGINAL_PATH:" in
+    *":$BIN_DIR:"*) info "Try it: commons search \"something to hand out at a freshers fair\"" ;;
+    *)
+      info "One more thing: $BIN_DIR is not on your PATH, so typing \"commons\" will not find it yet."
+      case "${SHELL:-}" in
+        */zsh) info "To add it, paste this line and open a new terminal window:" && info "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc" ;;
+        */bash) info "To add it, paste this line and open a new terminal window:" && info "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc" ;;
+        */fish) info "To add it, paste this line:" && info "  fish_add_path ~/.local/bin" ;;
+        *) info "Add that folder to the PATH in your shell's start-up file, then open a new terminal window." ;;
+      esac
+      info "Until then it runs as: $BIN_DIR/commons"
+      ;;
+  esac
+}
+
+# ---- 5: the agent's memory ----
+# Puts the block between the marker lines at the end of the file $1. An earlier block is taken out first, so the
+# file does not grow when this runs again. Everything else in the file stays as it is (apart from blank lines at
+# the very end). A start marker without its end marker is left alone.
+write_memory_block() {
+  _file="$1"
+  _dir=$(dirname "$_file")
+  mkdir -p "$_dir" || return 1
+  _new=$(mktemp "$_dir/.groups-commons.XXXXXX") || return 1
+  if [ -f "$_file" ]; then
+    awk -v s="$MARK_START" -v e="$MARK_END" '
+      $0 == s { if (skip) { printf "%s%s", held, buf; held = "" } skip = 1; buf = $0 "\n"; next }
+      skip && $0 == e { skip = 0; buf = ""; next }
+      skip { buf = buf $0 "\n"; next }
+      /^[ \t\r]*$/ { held = held $0 "\n"; next }
+      { printf "%s%s\n", held, $0; held = "" }
+      END { if (skip) printf "%s%s", held, buf }
+    ' "$_file" >"$_new" || { rm -f "$_new"; return 1; }
+  fi
+  [ -s "$_new" ] && printf '\n' >>"$_new"
+  printf '%s\n%s\n%s\n' "$MARK_START" "$MEMORY_TEXT" "$MARK_END" >>"$_new"
+  # Written with cat, not mv: a memory file that is a link to somewhere else stays a link.
+  if cat "$_new" >"$_file"; then
+    rm -f "$_new"
+  else
+    rm -f "$_new"
+    return 1
+  fi
+}
+
+offer_memory() { # $1 = agent name, $2 = its memory file
+  _had_block=0
+  [ -f "$2" ] && grep -Fxq "$MARK_START" "$2" && _had_block=1
+  if [ "$_had_block" = 1 ]; then
+    ask_yes_no "Replace the Groups Commons block in $2 with this?"
+  else
+    ask_yes_no "Add this to $1's memory ($2)?"
+  fi
+  case $? in
+    0)
+      if write_memory_block "$2"; then
+        if [ "$_had_block" = 1 ]; then info "Replaced the earlier block in $2"; else info "Added to $2"; fi
+        result "[done] $1 knows about your group ($2)"
+      else
+        info "Could not write $2"
+        failed "$1's memory file could not be written ($2)"
+      fi
+      ;;
+    1)
+      info "Left $2 as it is."
+      result "[skipped] $1's memory was left as it is, as you chose"
+      ;;
+    *)
+      info "Skipped: there is no terminal to ask you on, and this script does not write to $2 without asking."
+      info "To add it yourself, paste the lines above into that file."
+      result "[skipped] $1's memory: nobody to ask, nothing written"
+      ;;
+  esac
+}
+
+setup_memory() {
+  step "Tell your agent about your group"
+  MEMORY_TEXT=$(decode_b64 "$MEMORY_B64") || MEMORY_TEXT=''
+  if [ -z "$MEMORY_TEXT" ]; then
+    info "Could not read the group details on this computer (no base64 tool). Nothing was written."
+    result "[skipped] Group details could not be read"
+    return 0
+  fi
+  info "These lines came with the command. Say yes only if they describe your group:"
+  say
+  printf '%s\n' "$MEMORY_TEXT" | sed 's/^/      | /'
+  say
+  if [ "$WANT_CLAUDE" = 1 ]; then offer_memory "Claude Code" "$HOME/.claude/CLAUDE.md"; fi
+  if [ "$WANT_CODEX" = 1 ]; then offer_memory "Codex" "$HOME/.codex/AGENTS.md"; fi
+}
+
+main() {
+  set -u
+
+  # ---- the settings for this run. The server fills in these lines; nothing else differs between copies. ----
+  COMMONS_URL='__COMMONS_URL__'
+  WANT_CLAUDE=__WANT_CLAUDE__      # 1 = set up Claude Code
+  WANT_CODEX=__WANT_CODEX__       # 1 = set up Codex
+  INSTALL_AGENT=__INSTALL_AGENT__    # 1 = install the agent when it is missing
+  INSTALL_SKILL=__INSTALL_SKILL__    # 1 = save the Claude Code skill
+  INSTALL_CLI=__INSTALL_CLI__      # 1 = save the "commons" command line tool
+  MEMORY_B64='__MEMORY_B64__'
+
+  MARK_START='<!-- groups-commons:start -->'
+  MARK_END='<!-- groups-commons:end -->'
+  SUMMARY=''
+  FAILED=0
+
+  say "Groups Commons setup ($COMMONS_URL)"
+  if [ -z "${HOME:-}" ] || [ ! -d "$HOME" ]; then
+    say "Stopped: this computer does not say where your home folder is (HOME is not set)."
+    return 1
+  fi
+  if ! have curl; then
+    say "Stopped: this script downloads a few files with curl, and curl is not installed."
+    return 1
+  fi
+  BIN_DIR="$HOME/.local/bin"
+  ORIGINAL_PATH="$PATH"
+  PATH="$PATH:$BIN_DIR" # the Claude Code installer puts "claude" there; this change lasts only for this script
+
+  CLAUDE_READY=0
+  CODEX_READY=0
+  if [ "$WANT_CLAUDE" = 1 ] && setup_claude; then CLAUDE_READY=1; fi
+  if [ "$WANT_CODEX" = 1 ] && setup_codex; then CODEX_READY=1; fi
+  if [ "$INSTALL_SKILL" = 1 ]; then setup_skill; fi
+  if [ "$INSTALL_CLI" = 1 ]; then setup_cli; fi
+  if [ -n "$MEMORY_B64" ]; then setup_memory; fi
+
+  step "Summary"
+  printf '%s' "$SUMMARY"
+  say
+  if [ "$CLAUDE_READY" = 1 ] || [ "$CODEX_READY" = 1 ]; then
+    _start='claude'
+    [ "$CLAUDE_READY" = 1 ] || _start='codex'
+    say "Now open your agent (type: $_start; the first time it asks you to sign in) and say, for example:"
+    say "  We have a stall at the activities fair next week. Find a table sign and a flyer on the Groups Commons and prepare them for our group."
+  else
+    say "No agent is connected yet. Install one (see above), then run the same command again."
+  fi
+  return "$FAILED"
+}
+
+# The whole file has been read by the time this line runs, so a download that broke off halfway does nothing.
+main "$@"

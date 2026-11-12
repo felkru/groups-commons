@@ -1,0 +1,33 @@
+node_modules/
+data/
+.env
+.env.*
+*.log
+.DS_Store
+.commons.json
+
+# Seed materials that stay out of the public repository (they remain on disk and can still be uploaded with the CLI):
+# photos with identifiable people: on the site (reuse was confirmed 2026-11-12) but not in the public repository
+seed/photo-standing-discussion-at-table/
+seed/photo-two-people-coding-plant-foreground/
+seed/photo-three-people-around-one-laptop/
+seed/photo-table-of-laptops-and-hands/
+seed/photo-coworking-session-wide/
+# original group files with open third-party questions (partner logos, stock images, a paper screenshot, people in photos)
+seed/lecture-hall-pitch-deck/
+seed/slide-master-template/
+seed/semester-overview-deck/
+seed/poster-series-care-shape-together/
+seed/instagram-posts-poster-series/
+seed/trifold-flyer-print-files/
+seed/rollup-banner-print-file/
+seed/photo-event-venue-stage-and-screen/
+seed/photo-talk-in-church-venue-wide/
+
+# The materials are kept out of this repository (a group's internal originals and photos); see docs/SEED_FORMAT.md.
+seed/
+
+# The intro video shows printables with photos of the example group's members: part of the site (it goes into the
+# build through .gcloudignore), not of the public repository. tools/intro-video/README.md says how to make it.
+public/assets/intro.mp4
+public/assets/intro-poster.jpg

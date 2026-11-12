@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Groups Commons: shared materials for AI safety groups</title>
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="wordmark" href="/"><span class="dot"></span>Groups Commons <span class="proto">prototype</span></a>
+  <nav class="pill" id="nav">
+    <a href="/" data-nav="browse">Browse</a>
+    <a href="/brand" data-nav="brand">Brand kit</a>
+    <a href="/leaderboard" data-nav="leaderboard">Leaderboard</a>
+    <a href="/cli" data-nav="cli">Use with Claude</a>
+    <a href="/about" data-nav="about">About</a>
+  </nav>
+  <div class="row"><span id="acct" class="row"></span><button type="button" class="btn" data-agent-setup>Set up my AI</button><a class="btn primary" href="/contribute">Add material</a></div>
+</header>
+<main id="app"><p class="loading">Loading…</p></main>
+<footer class="foot">
+  <p>Prototype built during a work trial. Seed content from AI Safety Aachen; votes and use counts on seed materials are simulated. <a href="/about">About this prototype</a> · <a href="/privacy">Privacy</a></p>
+</footer>
+<dialog id="intro" class="intro" aria-labelledby="intro-title">
+  <button type="button" class="x" data-close-intro aria-label="Close">×</button>
+  <h2 id="intro-title">Most groups use the commons <em>through Claude</em></h2>
+  <video controls muted playsinline preload="none"></video>
+  <ol class="steps">
+    <li><b>Ask in one sentence.</b> “I want to run an intro evening. Prep all the marketing for me.”</li>
+    <li><b>Claude pulls what other groups made.</b> Posters, posts, invitations and emails that organizers wrote, designed and used at real events.</li>
+    <li><b>It adapts them to your group</b> from what it remembers about you: name, colours, fonts and links.</li>
+  </ol>
+  <div class="row"><a class="btn primary" data-tryit target="_blank" rel="noopener">Try it</a><a class="btn" href="/cli" data-close-intro>Connect Claude for good</a><button type="button" class="btn" data-close-intro>Browse the site</button></div>
+  <p class="small muted" style="margin:10px 0 0">“Try it” opens Claude with a prompt ready: it asks you about your event and what you already have, then prepares the marketing from the commons.</p>
+</dialog>
+<dialog id="agent-setup" class="setup" aria-labelledby="setup-title"></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="/vendor/qrcode.js"></script>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

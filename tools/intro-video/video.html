@@ -1,0 +1,149 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="xterm.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; }
+  body { font-family: 'Instrument Sans', system-ui, sans-serif; color: #3b1d12; background-color: #fffdfb; background-image: radial-gradient(#eadccf 1.1px, transparent 1.3px); background-size: 22px 22px; }
+  .scene { position: absolute; inset: 0; opacity: 0; }
+  h1 { font-family: 'Newsreader', Georgia, serif; font-weight: 500; letter-spacing: -0.01em; margin: 0; line-height: 1.08; }
+  em { font-style: italic; color: #c8442f; }
+  .brandline { position: absolute; left: 110px; top: 60px; font-family: 'Newsreader', serif; font-weight: 600; font-size: 24px; display: flex; align-items: center; gap: 10px; }
+  .brandline i { width: 15px; height: 15px; border-radius: 50%; background: #c8442f; display: inline-block; }
+  .caption { position: absolute; left: 0; right: 0; bottom: 20px; text-align: center; font-size: 27px; font-weight: 600; }
+  .caption small { display: inline-block; font-size: 15px; font-weight: 600; color: #86695d; border: 1px solid #f3c6bd; background: #fdedea; border-radius: 999px; padding: 2px 12px; margin-left: 12px; vertical-align: 4px; }
+  /* every item on screen says what it is */
+  .tag { font-size: 14px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #a93522; margin-bottom: 8px; white-space: nowrap; }
+  .scenetitle { position: absolute; left: 60px; top: 30px; font-family: 'Newsreader', serif; font-size: 34px; font-weight: 500; }
+  /* title */
+  #title { display: flex; flex-direction: column; justify-content: center; padding: 0 110px; }
+  #title h1 { font-size: 76px; max-width: 16ch; }
+  #title p { font-size: 26px; color: #86695d; margin: 26px 0 0; }
+  /* terminal */
+  #term .win { position: absolute; left: 108px; top: 12px; width: 1064px; height: 606px; transform: scale(0.905); transform-origin: top center; background: #1d1614; border-radius: 14px; box-shadow: 0 24px 60px rgba(59, 29, 18, 0.28); overflow: hidden; }
+  #term .bar { height: 34px; background: #2b211e; display: flex; align-items: center; gap: 8px; padding: 0 14px; color: #a8958c; font-size: 13px; }
+  #term .bar b { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  #term .bar span { flex: 1; text-align: center; margin-right: 52px; }
+  #xterm { padding: 10px 14px; }
+  /* to-do list */
+  #todo .sheet { position: absolute; left: 190px; top: 96px; width: 900px; background: #fff; border: 1px solid #eedfd6; border-radius: 18px; padding: 24px 34px; box-shadow: 0 14px 40px rgba(59, 29, 18, 0.12); }
+  #todo .line { display: grid; grid-template-columns: 26px 190px 1fr; gap: 14px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #f2e6de; font-size: 19px; }
+  #todo .line:last-child { border-bottom: 0; }
+  #todo .box { width: 18px; height: 18px; border: 2px solid #e0a63a; border-radius: 4px; transform: translateY(3px); }
+  #todo .when { font-weight: 700; color: #a93522; }
+  /* printables */
+  #results .item { position: absolute; }
+  #results .item img { display: block; border-radius: 8px; box-shadow: 0 16px 44px rgba(59, 29, 18, 0.26); }
+  /* messages */
+  #msgs .grid { position: absolute; left: 60px; right: 60px; top: 88px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .cardx { background: #fff; border: 1px solid #eedfd6; border-radius: 18px; padding: 16px 20px; box-shadow: 0 8px 24px rgba(59, 29, 18, 0.09); height: 246px; overflow: hidden; }
+  .cardx p { margin: 0; font-size: 16px; line-height: 1.42; white-space: pre-wrap; }
+  .cardx.chat { background: #e9f7e3; border-color: #cfe8c5; }
+  /* claim + end */
+  #claim, #end { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 0 90px; }
+  #claim h1 { font-size: 70px; max-width: 18ch; }
+  #claim p { font-size: 27px; color: #86695d; margin: 28px 0 0; max-width: 44ch; line-height: 1.4; }
+  #end h1 { font-size: 66px; }
+  #end .btn { margin-top: 34px; font-size: 30px; font-weight: 700; background: #c8442f; color: #fff; border-radius: 999px; padding: 16px 44px; }
+  #end p { font-size: 24px; color: #86695d; margin: 26px 0 0; max-width: 40ch; line-height: 1.4; }
+</style></head>
+<body>
+<div class="scene" id="title"><div class="brandline"><i></i>Groups Commons</div><h1>One sentence in. <em>Your event’s marketing out.</em></h1><p></p></div>
+<div class="scene" id="term"><div class="win"><div class="bar"><b style="background:#ff5f57"></b><b style="background:#febc2e"></b><b style="background:#28c840"></b><span>claude · ai-safety-nordhaven</span></div><div id="xterm"></div></div><div class="caption" id="tcap"></div></div>
+<div class="scene" id="todo"><div class="scenetitle"></div><div class="sheet"></div><div class="caption" id="dcap"></div></div>
+<div class="scene" id="results"><div class="scenetitle"></div><div id="items"></div><div class="caption" id="rcap"></div></div>
+<div class="scene" id="msgs"><div class="scenetitle"></div><div class="grid" id="cards"></div><div class="caption" id="mcap"></div></div>
+<div class="scene" id="claim"><h1></h1><p></p></div>
+<div class="scene" id="end"><div class="brandline"><i></i>Groups Commons</div><h1>Use it <em>through Claude.</em></h1><div class="btn">Try it</div><p></p></div>
+<script src="xterm.js"></script>
+<script>
+// Everything on screen is a pure function of the time t (seconds), so frames can be captured one by one.
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = (x) => { x = clamp(x); return x * x * (3 - 2 * x); };
+const text = (tag, cls, value) => { const el = document.createElement(tag); if (cls) el.className = cls; el.textContent = value; return el; };
+let cfg, cast, term, fed = 0;
+
+async function setup(config, castData) {
+  cfg = config; cast = castData;
+  term = new Terminal({ cols: cast.cols, rows: cast.rows, fontFamily: 'Menlo, Monaco, monospace', fontSize: 16, lineHeight: 1.15, cursorBlink: false, allowProposedApi: true, scrollback: 0,
+    theme: { background: '#1d1614', foreground: '#f3e9e2', cursor: '#f3e9e2' } });
+  term.open($('#xterm'));
+  // Size the window to the terminal, so that the last rows (where the prompt is typed) are never clipped.
+  const screen = $('#xterm .xterm-screen');
+  $('#term .win').style.height = 34 + 20 + screen.offsetHeight + 'px';
+  $('#term .win').style.width = Math.max(1064, 28 + screen.offsetWidth) + 'px';
+  $('#title p').textContent = cfg.title_sub;
+  $('#todo .scenetitle').textContent = cfg.todo_title;
+  for (const [when, what] of cfg.todo) { const line = text('div', 'line', ''); line.append(text('span', 'box', ''), text('span', 'when', when), text('span', '', what)); $('#todo .sheet').append(line); }
+  $('#results .scenetitle').textContent = cfg.results_title;
+  for (const it of cfg.items) {
+    const box = text('div', 'item', '');
+    box.style.left = it.x + 'px'; box.style.top = it.y + 'px';
+    const img = new Image(); img.src = it.img; if (it.h) img.style.height = it.h + 'px'; if (it.w) img.style.width = it.w + 'px';
+    box.append(text('div', 'tag', it.label), img);
+    $('#items').append(box);
+  }
+  $('#msgs .scenetitle').textContent = cfg.msgs_title;
+  for (const c of cfg.cards) { const card = text('div', 'cardx' + (c.chat ? ' chat' : ''), ''); card.append(text('div', 'tag', c.label), text('p', '', c.text)); $('#cards').append(card); }
+  $('#claim h1').innerHTML = cfg.claim_title; $('#claim p').textContent = cfg.claim_sub;
+  $('#end p').textContent = cfg.end_sub;
+  await document.fonts.ready;
+  await Promise.all([...document.images].map((im) => im.decode().catch(() => {})));
+  return { duration: cfg.duration };
+}
+
+const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+function feedTo(castTime) {
+  return new Promise((resolve) => {
+    while (fed < cast.events.length && cast.events[fed][0] <= castTime) {
+      const e = cast.events[fed++];
+      if (!e[1].startsWith('MARK:')) term.write(bytes(e[1]));
+    }
+    term.write('', resolve);
+  });
+}
+// video time -> time in the recording: piecewise linear through cfg.map = [[videoT, castT], ...]
+function castAt(t) {
+  const m = cfg.map;
+  if (t <= m[0][0]) return m[0][1];
+  for (let i = 1; i < m.length; i++) if (t <= m[i][0]) return m[i - 1][1] + ((t - m[i - 1][0]) / (m[i][0] - m[i - 1][0])) * (m[i][1] - m[i - 1][1]);
+  return m[m.length - 1][1];
+}
+function show(id, t, a, b, fade = 0.35) {
+  const o = t < a || t > b ? 0 : Math.min(ease((t - a) / fade), ease((b - t) / fade));
+  $(id).style.opacity = o;
+  return o > 0;
+}
+const slide = (el, r, delay, dx = 0, dy = 24) => { const k = ease((r - delay) / 0.55); el.style.opacity = k; el.style.transform = `translate(${(1 - k) * dx}px, ${(1 - k) * dy}px)`; };
+const captionAt = (list, r) => { const c = (list || []).filter((x) => r >= x[0]).pop(); return c ? c[1] : ''; };
+
+async function setTime(t) {
+  const s = cfg.scenes;
+  if (show('#title', t, s.title[0], s.title[1])) $('#title h1').style.transform = `translateY(${(1 - ease((t - s.title[0]) / 0.6)) * 18}px)`;
+  if (t >= s.term[0] - 0.5) await feedTo(castAt(t));
+  if (show('#term', t, s.term[0], s.term[1])) $('#tcap').innerHTML = captionAt(cfg.term_captions, t);
+  if (show('#todo', t, s.todo[0], s.todo[1])) {
+    const r = t - s.todo[0];
+    $$('#todo .line').forEach((el, i) => slide(el, r, 0.2 + i * 0.32, -18, 0));
+    $('#dcap').innerHTML = captionAt(cfg.todo_captions, r);
+  }
+  if (show('#results', t, s.results[0], s.results[1])) {
+    const r = t - s.results[0];
+    $$('#results .item').forEach((el, i) => slide(el, r, 0.15 + i * 0.7));
+    $('#rcap').innerHTML = captionAt(cfg.result_captions, r);
+  }
+  if (show('#msgs', t, s.msgs[0], s.msgs[1])) {
+    const r = t - s.msgs[0];
+    $$('.cardx').forEach((el, i) => slide(el, r, 0.1 + i * 0.65, 0, 20));
+    $('#mcap').innerHTML = captionAt(cfg.msg_captions, r);
+  }
+  if (show('#claim', t, s.claim[0], s.claim[1])) $('#claim h1').style.transform = `translateY(${(1 - ease((t - s.claim[0]) / 0.6)) * 18}px)`;
+  show('#end', t, s.end[0], s.end[1] + 9, 0.4);
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  return true;
+}
+</script>
+</body></html>

@@ -1,0 +1,12 @@
+node_modules
+data
+seed
+tools
+.git
+.gitignore
+.env
+.env.*
+*.log
+.DS_Store
+Dockerfile
+.dockerignore

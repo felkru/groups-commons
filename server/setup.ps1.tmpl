@@ -1,0 +1,384 @@
+#
+# Groups Commons: connect your AI coding agent to the shared library of organizing materials.
+# For Windows PowerShell 5.1 and PowerShell 7. Served by __COMMONS_URL__
+#
+# This copy was written for these answers:
+__REQUEST__
+#
+# What it does, in this order, telling you each step and how it went:
+#   1. Looks for the agent. If it is missing and installing was asked for: Claude Code through its official
+#      installer (https://claude.ai/install.ps1), Codex through "npm install -g @openai/codex".
+#   2. Connects the agent to the commons (an MCP server at __COMMONS_URL__/mcp).
+#   3. If asked for: saves the Claude Code skill to %USERPROFILE%\.claude\skills\commons\SKILL.md.
+#   4. If asked for: saves the "commons" command line tool to %USERPROFILE%\.local\bin (commons.mjs and a small
+#      commons.cmd that starts it; needs Node.js 18 or newer).
+#   5. If group details came along: shows them and ASKS before adding them to the agent's memory file
+#      (.claude\CLAUDE.md or .codex\AGENTS.md in your user folder), between two marker lines so that a later run
+#      replaces them.
+#
+# What it never does: ask for administrator rights, change your PATH or your PowerShell profile, or send anything
+# about you anywhere. Running it again is safe: it replaces its own earlier work and nothing else.
+#
+# Group details are kept below as base64 text ($MemoryB64) and are only ever shown or written as text, never
+# run. To read them yourself:  [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('<the value>'))
+# Unattended use: set $env:COMMONS_SETUP_MEMORY to yes (or no) to answer the memory question in advance.
+#
+# Everything runs inside one block, so no variable or function stays behind in your PowerShell window.
+
+& {
+  Set-StrictMode -Off
+  $ErrorActionPreference = 'Continue'
+  $ProgressPreference = 'SilentlyContinue'
+
+  # ---- the settings for this run. The server fills in these lines; nothing else differs between copies. ----
+  $CommonsUrl = '__COMMONS_URL__'
+  $WantClaude = __WANT_CLAUDE__      # set up Claude Code
+  $WantCodex = __WANT_CODEX__       # set up Codex
+  $InstallAgent = __INSTALL_AGENT__    # install the agent when it is missing
+  $InstallSkill = __INSTALL_SKILL__    # save the Claude Code skill
+  $InstallCli = __INSTALL_CLI__      # save the "commons" command line tool
+  $MemoryB64 = '__MEMORY_B64__'
+
+  $MarkStart = '<!-- groups-commons:start -->'
+  $MarkEnd = '<!-- groups-commons:end -->'
+  $OnWindows = ($env:OS -eq 'Windows_NT')
+  $BinDir = Join-Path (Join-Path $HOME '.local') 'bin'
+  $Utf8 = New-Object System.Text.UTF8Encoding($false)
+  $State = @{ Failed = $false; LastOk = $false; Summary = (New-Object System.Collections.Generic.List[string]) }
+
+  # ---- small helpers ----
+  function Write-Step([string]$Text) { Write-Host ''; Write-Host "==> $Text" }
+  function Write-Info([string]$Text) { Write-Host "    $Text" }
+  function Add-Result([string]$Text) { $State.Summary.Add("  $Text") }
+  function Add-Problem([string]$Text) { $State.Failed = $true; $State.Summary.Add("  [problem] $Text") }
+
+  # The full path of a program, or '' when it is not installed. Also looks in the folder where the Claude Code
+  # installer puts "claude", because a fresh install is not on the PATH of this window yet.
+  function Find-Tool([string]$Name) {
+    $found = @(Get-Command $Name -CommandType Application -All -ErrorAction SilentlyContinue)
+    if ($OnWindows) {
+      # npm also ships a file without an ending that Windows cannot start; only take real programs.
+      $found = @($found | Where-Object { @('.exe', '.cmd', '.bat', '.com') -contains "$($_.Extension)".ToLower() })
+    }
+    if ($found.Count -gt 0) { return $found[0].Path }
+    foreach ($ending in @('.exe', '.cmd', '')) {
+      $candidate = Join-Path $BinDir ($Name + $ending)
+      if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    return ''
+  }
+
+  # npm's own folder for programs is not always on the PATH; look there too before calling Codex missing.
+  function Find-Codex {
+    $codex = Find-Tool 'codex'
+    if ($codex) { return $codex }
+    $npm = Find-Tool 'npm'
+    if (-not $npm) { return '' }
+    $prefix = ''
+    try { $prefix = "$(& $npm prefix -g 2>$null)".Trim() } catch { $prefix = '' }
+    if (-not $prefix) { return '' }
+    foreach ($candidate in @((Join-Path $prefix 'codex.cmd'), (Join-Path (Join-Path $prefix 'bin') 'codex'))) {
+      if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    return ''
+  }
+
+  # Runs a program and notes in $State.LastOk whether it worked. What the program prints is shown indented,
+  # or thrown away with -Quiet.
+  function Invoke-Tool([string]$Exe, [string[]]$Arguments, [switch]$Quiet) {
+    $State.LastOk = $false
+    try {
+      $global:LASTEXITCODE = 0
+      if ($Quiet) { & $Exe @Arguments 2>&1 | Out-Null }
+      else { & $Exe @Arguments 2>&1 | ForEach-Object { Write-Host "      $_" } }
+      $State.LastOk = ($LASTEXITCODE -eq 0)
+    }
+    catch {
+      if (-not $Quiet) { Write-Host "      $($_.Exception.Message)" }
+    }
+  }
+
+  # Download $Url to $Path through a temporary file, so that a failed download never leaves a broken file behind.
+  function Save-Download([string]$Url, [string]$Path) {
+    $temp = "$Path.download"
+    try {
+      Invoke-WebRequest -Uri $Url -OutFile $temp -UseBasicParsing -ErrorAction Stop | Out-Null
+      if ((Get-Item -LiteralPath $temp).Length -le 0) { throw 'The download was empty.' }
+      Move-Item -LiteralPath $temp -Destination $Path -Force
+      return $true
+    }
+    catch {
+      Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+      return $false
+    }
+  }
+
+  # Asks a yes/no question. Answers 'yes', 'no', or 'nobody' when there is no person at a keyboard to ask.
+  function Read-YesNo([string]$Question) {
+    if ($env:COMMONS_SETUP_MEMORY -eq 'yes') { return 'yes' }
+    if ($env:COMMONS_SETUP_MEMORY -eq 'no') { return 'no' }
+    $redirected = $false
+    try { $redirected = ($Host.Name -eq 'ConsoleHost') -and [Console]::IsInputRedirected } catch { $redirected = $false }
+    if ($redirected) { return 'nobody' }
+    $answer = ''
+    try { $answer = Read-Host "    $Question [y/N]" } catch { return 'nobody' }
+    if ("$answer" -match '^\s*(y|yes)\s*$') { return 'yes' }
+    return 'no'
+  }
+
+  # ---- 1 and 2: the agents ----
+  function Set-UpClaude {
+    Write-Step 'Claude Code'
+    $claude = Find-Tool 'claude'
+    if ($claude) {
+      Write-Info "Found: $claude"
+    }
+    elseif ($InstallAgent) {
+      Write-Info 'Not installed yet. Installing it with the official installer (https://claude.ai/install.ps1) ...'
+      try {
+        $installer = Invoke-RestMethod -Uri 'https://claude.ai/install.ps1' -ErrorAction Stop
+        if (-not "$installer".Trim()) { throw 'The installer could not be downloaded.' }
+        & ([scriptblock]::Create("$installer")) | Out-Host
+      }
+      catch {
+        Write-Info "The installer stopped: $($_.Exception.Message)"
+      }
+      $claude = Find-Tool 'claude'
+      if ($claude) {
+        Write-Info "Installed: $claude"
+        Add-Result '[done] Claude Code installed'
+      }
+      else {
+        Write-Info 'Claude Code is still missing. Install it by hand (https://claude.com/claude-code), then run this command again.'
+        Add-Problem 'Claude Code could not be installed (https://claude.com/claude-code)'
+        return $false
+      }
+    }
+    else {
+      Write-Info 'Not installed. Get it at https://claude.com/claude-code, then run this command again to connect it.'
+      Add-Result '[skipped] Claude Code is not installed (https://claude.com/claude-code)'
+      return $false
+    }
+
+    Write-Info 'Connecting it to the commons ...'
+    Invoke-Tool $claude @('mcp', 'remove', 'commons', '-s', 'user') -Quiet
+    Invoke-Tool $claude @('mcp', 'add', '--transport', 'http', '-s', 'user', 'commons', "$CommonsUrl/mcp")
+    if ($State.LastOk) {
+      Write-Info 'Connected. Claude Code can now search the commons and prepare materials for your group.'
+      Add-Result '[done] Claude Code is connected to the commons'
+      return $true
+    }
+    Write-Info 'That did not work (see what Claude Code answered above).'
+    Write-Info "To try by hand: claude mcp add --transport http -s user commons $CommonsUrl/mcp"
+    Add-Problem 'Claude Code could not be connected to the commons'
+    return $false
+  }
+
+  function Set-UpCodex {
+    Write-Step 'Codex'
+    $codex = Find-Codex
+    if ($codex) {
+      Write-Info "Found: $codex"
+    }
+    elseif ($InstallAgent) {
+      $npm = Find-Tool 'npm'
+      if (-not $npm) {
+        Write-Info 'Not installed, and it cannot be installed yet: Codex comes through npm, which is part of Node.js,'
+        Write-Info 'and Node.js is not on this computer. Install Node.js (https://nodejs.org), then run this command again.'
+        Add-Problem 'Codex needs Node.js first (https://nodejs.org)'
+        return $false
+      }
+      Write-Info 'Not installed yet. Installing it with: npm install -g @openai/codex'
+      Invoke-Tool $npm @('install', '-g', '@openai/codex')
+      $codex = Find-Codex
+      if ($codex) {
+        Write-Info "Installed: $codex"
+        Add-Result '[done] Codex installed'
+      }
+      else {
+        Write-Info 'npm could not install it, or put it where this window does not look yet. Open a new PowerShell'
+        Write-Info 'window and run this command again; other ways to install it: https://github.com/openai/codex'
+        Add-Problem 'Codex could not be installed (https://github.com/openai/codex)'
+        return $false
+      }
+    }
+    else {
+      Write-Info 'Not installed. Get it at https://github.com/openai/codex, then run this command again to connect it.'
+      Add-Result '[skipped] Codex is not installed (https://github.com/openai/codex)'
+      return $false
+    }
+
+    Write-Info 'Connecting it to the commons ...'
+    Invoke-Tool $codex @('mcp', 'remove', 'commons') -Quiet
+    Invoke-Tool $codex @('mcp', 'add', 'commons', '--url', "$CommonsUrl/mcp")
+    if ($State.LastOk) {
+      Write-Info 'Connected. Codex can now search the commons and prepare materials for your group.'
+      Add-Result '[done] Codex is connected to the commons'
+      return $true
+    }
+    Write-Info 'That did not work (see what Codex answered above).'
+    Write-Info "To try by hand: codex mcp add commons --url $CommonsUrl/mcp"
+    Add-Problem 'Codex could not be connected to the commons'
+    return $false
+  }
+
+  # ---- 3: the Claude Code skill ----
+  function Set-UpSkill {
+    Write-Step 'Claude Code skill'
+    $dir = Join-Path (Join-Path (Join-Path $HOME '.claude') 'skills') 'commons'
+    $file = Join-Path $dir 'SKILL.md'
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    if (Save-Download "$CommonsUrl/cli/SKILL.md" $file) {
+      Write-Info "Saved: $file"
+      Write-Info 'With it, Claude Code looks in the commons before it designs a flyer or writes an invitation from scratch.'
+      Add-Result '[done] Claude Code skill saved'
+    }
+    else {
+      Write-Info "Could not download $CommonsUrl/cli/SKILL.md"
+      Add-Problem 'The Claude Code skill could not be downloaded'
+    }
+  }
+
+  # ---- 4: the command line tool ----
+  function Set-UpCli {
+    Write-Step 'The commons command line tool'
+    $node = Find-Tool 'node'
+    $major = 0
+    if ($node) {
+      try { $major = [int]((& $node --version 2>$null) -replace '^v(\d+).*$', '$1') } catch { $major = 0 }
+    }
+    if (-not $node) {
+      Write-Info 'Skipped: it needs Node.js 18 or newer, and Node.js is not on this computer.'
+      Write-Info 'Your agent can still use the commons through the connection above. For the tool, which is what'
+      Write-Info 'uploads whole folders, install Node.js (https://nodejs.org) and run this command again.'
+      Add-Result '[skipped] The commons command line tool needs Node.js (https://nodejs.org)'
+      return
+    }
+    if ($major -lt 18) {
+      Write-Info 'Skipped: it needs Node.js 18 or newer, and this computer has an older one.'
+      Add-Result '[skipped] The commons command line tool needs Node.js 18 or newer'
+      return
+    }
+    $tool = Join-Path $BinDir 'commons.mjs'
+    New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+    if (-not (Save-Download "$CommonsUrl/cli/commons.mjs" $tool)) {
+      Write-Info "Could not download $CommonsUrl/cli/commons.mjs"
+      Add-Problem 'The commons command line tool could not be downloaded'
+      return
+    }
+    Write-Info "Saved: $tool"
+    if ($OnWindows) {
+      # commons.cmd lets you type "commons" instead of "node commons.mjs".
+      $shim = Join-Path $BinDir 'commons.cmd'
+      $lines = @('@echo off', 'node "%~dp0commons.mjs" %*')
+      [IO.File]::WriteAllText($shim, (($lines -join "`r`n") + "`r`n"), [Text.Encoding]::ASCII)
+      Write-Info "Saved: $shim"
+    }
+    Add-Result "[done] commons command line tool saved to $BinDir"
+    $wanted = $BinDir.TrimEnd('\', '/')
+    $onPath = $false
+    foreach ($entry in ("$env:PATH" -split [IO.Path]::PathSeparator)) {
+      if ($entry.TrimEnd('\', '/') -eq $wanted) { $onPath = $true }
+    }
+    if ($onPath) {
+      Write-Info 'Try it: commons search "something to hand out at a freshers fair"'
+    }
+    else {
+      Write-Info "One more thing: $BinDir is not on your PATH, so typing ""commons"" will not find it yet."
+      Write-Info 'To add it, paste this line and open a new PowerShell window:'
+      Write-Info '  [Environment]::SetEnvironmentVariable(''Path'', [Environment]::GetEnvironmentVariable(''Path'', ''User'') + '';'' + "$HOME\.local\bin", ''User'')'
+      Write-Info "Until then it runs as: node ""$tool"""
+    }
+  }
+
+  # ---- 5: the agent's memory ----
+  # Puts the block between the marker lines at the end of the file. An earlier block is taken out first, so the
+  # file does not grow when this runs again. Everything else in the file stays as it is (apart from blank lines at
+  # the very end). A start marker without its end marker is left alone.
+  function Write-MemoryBlock([string]$File, [string]$Text) {
+    $dir = Split-Path -Parent $File
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $old = ''
+    if (Test-Path -LiteralPath $File -PathType Leaf) { $old = [IO.File]::ReadAllText($File, $Utf8) }
+    $start = [regex]::Escape($MarkStart)
+    $pattern = '(?s)' + $start + '(?:(?!' + $start + ').)*?' + [regex]::Escape($MarkEnd) + '\r?\n?'
+    $rest = ([regex]::Replace("$old", $pattern, '')).TrimEnd()
+    $nl = [Environment]::NewLine
+    $block = $MarkStart + $nl + (($Text -split '\r?\n') -join $nl) + $nl + $MarkEnd + $nl
+    if ($rest.Length -gt 0) { $new = $rest + $nl + $nl + $block } else { $new = $block }
+    [IO.File]::WriteAllText($File, $new, $Utf8)
+  }
+
+  function Request-Memory([string]$Agent, [string]$File, [string]$Text) {
+    $hadBlock = $false
+    if (Test-Path -LiteralPath $File -PathType Leaf) {
+      $hadBlock = ([IO.File]::ReadAllText($File, $Utf8)).Contains($MarkStart)
+    }
+    if ($hadBlock) { $answer = Read-YesNo "Replace the Groups Commons block in $File with this?" }
+    else { $answer = Read-YesNo "Add this to $Agent's memory ($File)?" }
+    if ($answer -eq 'yes') {
+      try {
+        Write-MemoryBlock $File $Text
+        if ($hadBlock) { Write-Info "Replaced the earlier block in $File" } else { Write-Info "Added to $File" }
+        Add-Result "[done] $Agent knows about your group ($File)"
+      }
+      catch {
+        Write-Info "Could not write ${File}: $($_.Exception.Message)"
+        Add-Problem "$Agent's memory file could not be written ($File)"
+      }
+    }
+    elseif ($answer -eq 'no') {
+      Write-Info "Left $File as it is."
+      Add-Result "[skipped] $Agent's memory was left as it is, as you chose"
+    }
+    else {
+      Write-Info "Skipped: there is nobody at a keyboard to ask, and this script does not write to $File without asking."
+      Write-Info 'To add it yourself, paste the lines above into that file.'
+      Add-Result "[skipped] $Agent's memory: nobody to ask, nothing written"
+    }
+  }
+
+  function Set-UpMemory {
+    Write-Step 'Tell your agent about your group'
+    $text = ''
+    try { $text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($MemoryB64)) } catch { $text = '' }
+    if (-not "$text".Trim()) {
+      Write-Info 'Could not read the group details. Nothing was written.'
+      Add-Result '[skipped] Group details could not be read'
+      return
+    }
+    Write-Info 'These lines came with the command. Say yes only if they describe your group:'
+    Write-Host ''
+    foreach ($line in ($text -split '\r?\n')) { Write-Host "      | $line" }
+    Write-Host ''
+    if ($WantClaude) { Request-Memory 'Claude Code' (Join-Path (Join-Path $HOME '.claude') 'CLAUDE.md') $text }
+    if ($WantCodex) { Request-Memory 'Codex' (Join-Path (Join-Path $HOME '.codex') 'AGENTS.md') $text }
+  }
+
+  # ---- the run ----
+  Write-Host "Groups Commons setup ($CommonsUrl)"
+  if (-not $OnWindows) {
+    Write-Info "Note: this script is written for Windows. On macOS, Linux and WSL use $CommonsUrl/setup.sh instead."
+  }
+  $claudeReady = $false
+  $codexReady = $false
+  if ($WantClaude) { $claudeReady = Set-UpClaude }
+  if ($WantCodex) { $codexReady = Set-UpCodex }
+  if ($InstallSkill) { Set-UpSkill }
+  if ($InstallCli) { Set-UpCli }
+  if ($MemoryB64) { Set-UpMemory }
+
+  Write-Step 'Summary'
+  foreach ($line in $State.Summary) { Write-Host $line }
+  Write-Host ''
+  if ($claudeReady -or $codexReady) {
+    $start = 'claude'
+    if (-not $claudeReady) { $start = 'codex' }
+    Write-Host "Now open your agent (type: $start; the first time it asks you to sign in) and say, for example:"
+    Write-Host '  We have a stall at the activities fair next week. Find a table sign and a flyer on the Groups Commons and prepare them for our group.'
+    Write-Host "If ""$start"" is not found, open a new PowerShell window first."
+  }
+  else {
+    Write-Host 'No agent is connected yet. Install one (see above), then run the same command again.'
+  }
+}

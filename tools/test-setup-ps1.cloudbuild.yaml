@@ -1,0 +1,26 @@
+# A test, not a deployment: runs the hosted /setup.ps1 for real under PowerShell 7 (Linux) with stub programs for
+# claude, codex and npm, and prints what the script said and did. Nothing is pushed or deployed.
+#
+#   gcloud builds submit --project <project> --region us-central1 --config tools/test-setup-ps1.cloudbuild.yaml .
+#
+# Step 1 installs the site's dependencies and puts a node binary into the workspace, because the PowerShell image
+# has no Node.js. Step 2 starts the site inside the PowerShell container and runs tools/test-setup-ps1.ps1 against
+# it. What this cannot show: Windows PowerShell 5.1, Windows paths and the commons.cmd file; those need a run on
+# a Windows machine.
+steps:
+  - id: dependencies
+    name: node:22-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        npm ci --no-audit --no-fund
+        mkdir -p .pstest
+        cp "$$(command -v node)" .pstest/node
+        .pstest/node --version
+  - id: setup-ps1
+    name: mcr.microsoft.com/powershell
+    entrypoint: pwsh
+    args: ['-NoLogo', '-NoProfile', '-File', 'tools/test-setup-ps1.ps1']
+timeout: 900s
