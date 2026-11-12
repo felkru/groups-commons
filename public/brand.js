@@ -179,13 +179,12 @@ export function fontsUrl(brand) {
   const fam = [...new Set([brand.font_heading, brand.font_body])].map((f) => `${f.replace(/ /g, '+')}:400,500,600,700,800`).join('|');
   return `https://fonts.googleapis.com/css?family=${fam}&display=swap`;
 }
-// The example group's untouched kit overrides nothing: its templates then show the colours and fonts they were
-// printed in (the roll-up banner is dark blue, the flyer violet with white text). A value the visitor changed is
-// applied, and so is every value of any other group's kit.
+// A value the group has not chosen (it still equals the starting kit's) is not forced onto a template: templates
+// then keep the colours and fonts they were printed in (the roll-up banner dark blue, the flyer's serif titles
+// and white text on violet). Everything a group did choose, or an example kit sets, is applied.
 export const BRAND_VAR_NAMES = ['--brand-color', '--brand-accent', '--brand-dark', '--brand-light', '--brand-on-color', '--brand-on-accent', '--brand-font-heading', '--brand-font-body'];
 export function brandVars(brand) {
   const vars = allBrandVars(brand);
-  if (!isDefaultBrand(brand)) return vars;
   const same = (k) => brand[k] === DEFAULT_BRAND[k];
   if (same('font_heading') && same('font_body')) {
     delete vars['--brand-font-heading'];
@@ -251,6 +250,20 @@ export function initials(name) {
   const whole = used.map((w) => (/^[\p{Lu}\p{N}]{2,3}$/u.test(w) ? w : [...w][0].toUpperCase())).join('');
   return (whole.length <= 6 ? whole : used.map((w) => [...w][0].toUpperCase()).join('').slice(0, 5)) || 'G';
 }
+// The group's name next to a mark. A long name is set on two lines, so that the logo does not become a thin strip.
+function besideName(name, fill) {
+  const text = String(name || 'Your group').trim();
+  let lines = [text];
+  if (text.length > 26 && text.includes(' ')) {
+    const spaces = [...text.matchAll(/ /g)].map((m) => m.index);
+    const cut = spaces.reduce((best, i) => (Math.abs(i - text.length / 2) < Math.abs(best - text.length / 2) ? i : best), spaces[0]);
+    lines = [text.slice(0, cut), text.slice(cut + 1)];
+  }
+  const size = lines.length > 1 ? 62 : 78;
+  const width = 250 + Math.round(Math.max(...lines.map((l) => l.length)) * size * 0.565);
+  const y = lines.length > 1 ? [88, 160] : [126];
+  return { width, markup: lines.map((l, i) => `<text x="236" y="${y[i]}" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="${size}" fill="${fill}">${xml(l)}</text>`).join('') };
+}
 export function monogram(brand, kind, light = false) {
   const text = initials(brand.group_name);
   const fill = light ? '#ffffff' : brand.color;
@@ -258,11 +271,8 @@ export function monogram(brand, kind, light = false) {
   const size = [96, 96, 96, 78, 62, 50, 42][text.length] || 42;
   const mark = `<rect width="200" height="200" rx="44" fill="${fill}"/><text x="100" y="${100 + size * 0.35}" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="${size}" text-anchor="middle" fill="${ink}">${xml(text)}</text>`;
   if (kind === 'square') return svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">${mark}</svg>`);
-  const name = String(brand.group_name || 'Your group');
-  const width = 250 + Math.round(name.length * 44);
-  return svgUri(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} 200">${mark}<text x="236" y="126" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="78" fill="${light ? '#ffffff' : brand.dark}">${xml(name)}</text></svg>`,
-  );
+  const name = besideName(brand.group_name, light ? '#ffffff' : brand.dark);
+  return svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${name.width} 200">${mark}${name.markup}</svg>`);
 }
 // A generated logo mark (SVG drawn in #111111 and #eeeeee) in the brand's colours, alone or next to the group name.
 export function logoFromMark(svg, brand, kind, light = false) {
@@ -271,9 +281,8 @@ export function logoFromMark(svg, brand, kind, light = false) {
   const mark = String(svg).replace(/#111111/gi, main).replace(/#eeeeee/gi, detail);
   if (kind === 'square') return svgUri(mark);
   const inner = mark.replace(/^[\s\S]*?<svg[^>]*>/i, '').replace(/<\/svg>\s*$/i, '');
-  const name = String(brand.group_name || 'Your group');
-  const width = 250 + Math.round(name.length * 44);
-  return svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} 200"><svg x="0" y="0" width="200" height="200" viewBox="0 0 200 200">${inner}</svg><text x="236" y="126" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="78" fill="${light ? '#ffffff' : brand.dark}">${xml(name)}</text></svg>`);
+  const name = besideName(brand.group_name, light ? '#ffffff' : brand.dark);
+  return svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${name.width} 200"><svg x="0" y="0" width="200" height="200" viewBox="0 0 200 200">${inner}</svg>${name.markup}</svg>`);
 }
 
 // The logo a template should show, or null to keep the template's own default file.

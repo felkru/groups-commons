@@ -152,7 +152,7 @@ describe('front end', () => {
     }
   });
   test('the privacy page is routed, linked from the footer and names what the operator must fill in', () => {
-    assert.match(read('app.js'), /\[\/\^\\\/privacy\\\/\?\$\/, privacyPage, ''\]/);
+    assert.match(read('app.js'), /\[\/\^\\\/privacy\\\/\?\$\/, privacyPage, '', 'Privacy'\]/);
     assert.match(read('index.html'), /<footer[\s\S]*href="\/privacy"[\s\S]*<\/footer>/);
     const page = read('more.js');
     assert.match(page, /export async function privacyPage/);

@@ -12,18 +12,20 @@ import { $, $$, KIND, esc, plural, state, timeAgo, voteBox } from './ui.js';
 const app = $('#app');
 let cleanup = null;
 
+// [address, page, entry of the navigation it belongs to, name in the browser tab]
+const SITE_TITLE = 'Groups Commons: shared materials for AI safety groups';
 const routes = [
-  [/^\/$/, home, 'browse'],
-  [/^\/m\/([a-z0-9-]+)\/?$/, itemPage, 'browse'],
-  [/^\/brand\/?$/, brandPage, 'brand'],
-  [/^\/add\/?$/, addPage, ''],
-  [/^\/contribute\/?$/, contributePage, ''],
-  [/^\/cli\/?$/, cliPage, 'cli'],
-  [/^\/about\/?$/, aboutPage, 'about'],
-  [/^\/privacy\/?$/, privacyPage, ''],
-  [/^\/leaderboard\/?$/, leaderboardPage, 'leaderboard'],
-  [/^\/account\/?$/, accountPage, ''],
-  [/^\/moderate\/?$/, moderatePage, ''],
+  [/^\/$/, home, 'browse', ''],
+  [/^\/m\/([a-z0-9-]+)\/?$/, itemPage, 'browse', ''],
+  [/^\/brand\/?$/, brandPage, 'brand', 'Brand kit'],
+  [/^\/add\/?$/, addPage, '', 'Add material'],
+  [/^\/contribute\/?$/, contributePage, '', 'Contribute'],
+  [/^\/cli\/?$/, cliPage, 'cli', 'Use it with Claude'],
+  [/^\/about\/?$/, aboutPage, 'about', 'About'],
+  [/^\/privacy\/?$/, privacyPage, '', 'Privacy'],
+  [/^\/leaderboard\/?$/, leaderboardPage, 'leaderboard', 'Leaderboard'],
+  [/^\/account\/?$/, accountPage, '', 'Account'],
+  [/^\/moderate\/?$/, moderatePage, '', 'Moderate'],
 ];
 
 // On phones the navigation folds away behind the Menu button in the header (styles.css shows the button there).
@@ -57,6 +59,7 @@ async function render() {
   queueMicrotask(() => $$('[data-tryit]').forEach((a) => a.setAttribute('href', `https://claude.ai/new?q=${encodeURIComponent(tryItPrompt())}`)));
   const me = state.meta.account;
   $('#acct').innerHTML = `${state.meta.admin ? '<a class="btn small" href="/moderate">Moderate</a>' : ''}<a class="btn small" href="/account">${me ? esc(me.username) : 'Sign in'}</a>`;
+  document.title = !route ? 'Page not found · Groups Commons' : route[3] ? `${route[3]} · Groups Commons` : SITE_TITLE;
   if (!route) {
     app.innerHTML = '<div class="empty"><h2>Page not found</h2><p><a href="/">Back to all materials</a></p></div>';
     return;
@@ -204,6 +207,8 @@ async function home(root) {
     const cats = Object.entries(state.meta.categories).filter(([k]) => data.counts[k]);
     const all = Object.values(data.counts).reduce((a, b) => a + b, 0);
     const active = sort || (q ? '' : 'best');
+    // The moderators' picks lead the unfiltered list and are not repeated below them.
+    const featured = q || cat ? [] : data.items.filter((i) => i.featured).sort((a, b) => String(b.featured_at).localeCompare(String(a.featured_at))).slice(0, 3);
     results.innerHTML = `
       <div class="chips">
         <button class="chip ${cat ? '' : 'on'}" data-cat="">All<span class="n">${all}</span></button>
@@ -213,8 +218,8 @@ async function home(root) {
         <div class="tabs">${q ? `<button data-sort="" class="${active ? '' : 'on'}">Relevance</button>` : ''}${Object.entries(SORTS).map(([k, label]) => `<button data-sort="${k}" class="${active === k ? 'on' : ''}" title="${esc(SORT_HELP[k])}">${label}</button>`).join('')}</div>
         <span class="small muted">${q ? `${plural(data.items.length, 'result')} for “${esc(q)}”` : esc(SORT_HELP[active] || '')}</span>
       </div>
-      ${!q && !cat && data.items.some((i) => i.featured) ? `<h2 class="rowtitle">Featured by moderators</h2><div class="grid">${data.items.filter((i) => i.featured).sort((a, b) => String(b.featured_at).localeCompare(String(a.featured_at))).slice(0, 3).map(card).join('')}</div><h2 class="rowtitle">All materials</h2>` : ''}
-      ${data.items.length ? `<div class="grid">${data.items.map(card).join('')}</div>` : `<div class="empty"><h2>Nothing here yet</h2><p>${q ? 'No material matches that search.' : 'No materials in this category.'} If your group has one, <a href="/add">add it</a>.</p></div>`}`;
+      ${featured.length ? `<h2 class="rowtitle">Featured by moderators</h2><div class="grid">${featured.map(card).join('')}</div><h2 class="rowtitle">More materials</h2>` : ''}
+      ${data.items.length ? `<div class="grid">${data.items.filter((i) => !featured.includes(i)).map(card).join('')}</div>` : `<div class="empty"><h2>Nothing here yet</h2><p>${q ? 'No material matches that search.' : 'No materials in this category.'} If your group has one, <a href="/add">add it</a>.</p></div>`}`;
     watchPreviews(results);
     showSelected($('.chips', results));
   }

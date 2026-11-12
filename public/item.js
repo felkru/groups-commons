@@ -97,7 +97,6 @@ export async function itemPage(root, [slug]) {
   return () => {
     editor?.destroy();
     state.currentItem = null;
-    document.title = 'Groups Commons: shared materials for AI safety groups';
   };
 }
 
