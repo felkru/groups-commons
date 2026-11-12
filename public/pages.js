@@ -214,7 +214,7 @@ export async function addPage(root) {
       <div class="row"><button type="button" class="btn primary" id="convert" ${state.meta.conversion ? '' : 'disabled'}>Convert to a template</button><span class="small muted" id="progress"></span></div>
       <div id="converted" hidden style="margin-top:16px">
         <div class="stage"></div>
-        <p class="hint">Click any text to fix it. The preview uses your brand kit.</p>
+        <p class="hint">Click or tap any text to fix it. The preview uses your brand kit.</p>
         <form id="save" style="margin-top:12px">
           <div class="two"><label>Title<input name="title" maxlength="90" required></label><label>Category<select name="category">${cats}</select></label></div>
           <label>What is it, and when did it work well?<textarea name="summary" maxlength="400" required></textarea></label>

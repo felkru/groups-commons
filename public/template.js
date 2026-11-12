@@ -3,7 +3,7 @@
 // brand kit, makes the marked text editable in place and prints it to PDF.
 
 import { fileBase, filePath, store } from './api.js';
-import { brandVars, fontsUrl, getBrand, logoFor, qrDataUri } from './brand.js';
+import { brandVars, fontsUrl, getBrand, isDefaultBrand, logoFor, qrDataUri } from './brand.js';
 
 const QR_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='white'/%3E%3Cpath d='M8 8h28v28H8zM64 8h28v28H64zM8 64h28v28H8z' fill='none' stroke='%23252627' stroke-width='8'/%3E%3Ctext x='50' y='56' font-family='sans-serif' font-size='12' text-anchor='middle' fill='%23252627'%3EQR%3C/text%3E%3C/svg%3E";
@@ -119,9 +119,14 @@ export function dress(doc, brand, edits = {}, editable = false, photos = {}) {
     doc.head.append(fonts);
   }
   if (fonts.getAttribute('href') !== fontsUrl(brand)) fonts.setAttribute('href', fontsUrl(brand));
+  const ownDetails = isDefaultBrand(brand);
   for (const el of doc.querySelectorAll('[data-brand]')) {
     const v = brand[el.getAttribute('data-brand')];
-    if (v && el.textContent !== v && doc.activeElement !== el) el.textContent = v;
+    if (!el.hasAttribute('data-commons-brand-original')) el.setAttribute('data-commons-brand-original', el.textContent);
+    // A kit that leaves a detail empty (say, no email address) must not show the example group's detail under
+    // another group's name: the place stays empty. The example group's own kit keeps the template's text.
+    const next = v || (ownDetails ? el.getAttribute('data-commons-brand-original') : '');
+    if (el.textContent !== next && doc.activeElement !== el) el.textContent = next;
   }
   for (const a of doc.querySelectorAll('a[data-brand]')) {
     const key = a.getAttribute('data-brand');

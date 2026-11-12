@@ -118,7 +118,7 @@ async function templateTool(tool, item) {
         <a class="btn small" href="/brand">Brand kit: ${esc(brand.group_name)}</a>
       </div>
       <div class="stage"><p class="loading">Loading template…</p></div>
-      <p class="hint">Click any text to change it, and any photo to replace it with your own. Colours, fonts, logo, group name and QR codes come from your brand kit, so every template on this site matches. Your edits are saved in this browser. In the print dialog choose “Save as PDF”, margins “None” and switch on “Background graphics”.</p>
+      <p class="hint">Click or tap any text to change it, and any photo to replace it with your own. Colours, fonts, logo, group name and QR codes come from your brand kit, so every template on this site matches. Your edits are saved in this browser. In the print dialog choose “Save as PDF”, margins “None” and switch on “Background graphics”.</p>
     </section>
     <dialog id="share">
       <form method="dialog" class="form">
