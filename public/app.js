@@ -6,11 +6,13 @@ import { PRESETS, activePreset, applyPreset, brandFromLink, getBrand, hasOwnBran
 import { itemPage } from './item.js';
 import { accountPage, leaderboardPage, moderatePage, privacyPage } from './more.js';
 import { aboutPage, addPage, brandPage, cliPage } from './pages.js';
-import { watchPreviews } from './template.js';
+import { redressPreviews, watchPreviews } from './template.js';
 import { $, $$, KIND, esc, plural, state, timeAgo, voteBox } from './ui.js';
 
 const app = $('#app');
 let cleanup = null;
+// Lists of materials this visit has already loaded, by filter (shown at once when the visitor comes back to one).
+const listCache = new Map();
 
 // [address, page, entry of the navigation it belongs to, name in the browser tab]
 const SITE_TITLE = 'Groups Commons: shared materials for AI safety groups';
@@ -150,7 +152,18 @@ async function home(root) {
   let q = p.get('q') || '';
   let cat = p.get('c') || '';
   let sort = p.get('sort') || '';
-  const brand = getBrand();
+  // The line that says whose look the templates are in, and the row of example kits.
+  const brandBar = () => {
+    const brand = getBrand();
+    return `
+    <div class="brandstrip">
+      <span>Templates are shown in your brand:</span>
+      <span><span class="swatch" style="background:${esc(brand.color)}"></span> <span class="swatch" style="background:${esc(brand.accent)}"></span></span>
+      <strong>${esc(brand.group_name)}</strong><span>${esc(brand.font_heading)} / ${esc(brand.font_body)}</span>
+      <a href="/brand">Change brand kit</a>
+    </div>
+    ${PRESETS.length > 1 ? `<div class="kits"><span class="small muted">See every template in another group’s real look:</span><div class="kitrow">${PRESETS.map((k) => `<button type="button" class="kit ${activePreset() === k.id ? 'on' : ''}" data-kit="${esc(k.id)}" title="${esc(`${k.group_name}: ${k.font_heading} / ${k.font_body}`)}"><span class="swatch" style="background:${esc(k.color)}"></span><span class="swatch" style="background:${esc(k.accent)}"></span>${esc(k.group_name)}</button>`).join('')}${hasOwnBrand() ? '<button type="button" class="kit" data-kit="">Back to my own kit</button>' : ''}</div></div>` : ''}`;
+  };
   root.innerHTML = `
     <section class="hero ${q || cat ? 'compact' : ''}">
       <div>
@@ -164,21 +177,18 @@ async function home(root) {
       <input id="q" type="search" placeholder="What do you need? Try “something to hand out at a freshers fair”" value="${esc(q)}" autocomplete="off" aria-label="Search materials">
       <span class="mode" id="mode"></span>
     </label>
-    <div class="brandstrip">
-      <span>Templates are shown in your brand:</span>
-      <span><span class="swatch" style="background:${esc(brand.color)}"></span> <span class="swatch" style="background:${esc(brand.accent)}"></span></span>
-      <strong>${esc(brand.group_name)}</strong><span>${esc(brand.font_heading)} / ${esc(brand.font_body)}</span>
-      <a href="/brand">Change brand kit</a>
-    </div>
-    ${PRESETS.length > 1 ? `<div class="kits"><span class="small muted">See every template in another group’s real look:</span><div class="kitrow">${PRESETS.map((k) => `<button type="button" class="kit ${activePreset() === k.id ? 'on' : ''}" data-kit="${esc(k.id)}" title="${esc(`${k.group_name}: ${k.font_heading} / ${k.font_body}`)}"><span class="swatch" style="background:${esc(k.color)}"></span><span class="swatch" style="background:${esc(k.accent)}"></span>${esc(k.group_name)}</button>`).join('')}${hasOwnBrand() ? '<button type="button" class="kit" data-kit="">Back to my own kit</button>' : ''}</div></div>` : ''}
-    <div id="results"><p class="loading">Loading materials…</p></div>`;
+    <div id="brandbar">${brandBar()}</div>
+    <div id="results">${listCache.size ? '' : '<p class="loading">Loading materials…</p>'}</div>`;
 
   root.addEventListener('click', (e) => {
     const kit = e.target.closest('[data-kit]');
     if (!kit) return;
     if (kit.dataset.kit) applyPreset(kit.dataset.kit);
     else restoreOwnBrand();
-    go(location.pathname + location.search, true);
+    // Only the look changes: the materials stay where they are and their previews are re-dressed in place.
+    $('#brandbar', root).innerHTML = brandBar();
+    showSelected($('.kitrow', root));
+    redressPreviews(root);
   });
   showSelected($('.kitrow', root));
   const results = $('#results', root);
@@ -196,14 +206,23 @@ async function home(root) {
     if (sort) url.set('sort', sort);
     const address = '/' + (url.size ? '?' + url : '');
     if (address !== location.pathname + location.search) history[step ? 'pushState' : 'replaceState']({}, '', address);
+    // What this list looked like a moment ago is shown at once; the current state follows quietly.
+    const key = String(params);
+    const known = listCache.get(key);
+    if (known) show(known);
     let data;
     try {
       data = await api('/items?' + params);
     } catch (err) {
-      if (mine === seq) results.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+      if (mine === seq && !known) results.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
       return;
     }
+    listCache.set(key, data);
+    if (listCache.size > 30) listCache.delete(listCache.keys().next().value);
     if (mine !== seq) return;
+    if (!known || JSON.stringify(known) !== JSON.stringify(data)) show(data);
+  }
+  function show(data) {
     $('.hero', root).classList.toggle('compact', !!(q || cat));
     $('#mode', root).textContent = q ? (data.mode === 'semantic' ? 'semantic search' : 'keyword search') : '';
     const cats = Object.entries(state.meta.categories).filter(([k]) => data.counts[k]);

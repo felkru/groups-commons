@@ -135,13 +135,27 @@ export function dress(doc, brand, edits = {}, editable = false, photos = {}) {
     const href = key === 'email' ? `mailto:${v}` : key === 'instagram' ? `https://www.instagram.com/${v.replace(/^@/, '')}/` : /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`;
     a.setAttribute(a.hasAttribute('data-commons-href') ? 'data-commons-href' : 'href', href);
   }
-  for (const img of doc.querySelectorAll('img[data-logo]')) {
-    if (!img.hasAttribute('data-commons-src')) img.setAttribute('data-commons-src', img.getAttribute('src') || '');
+  // Logo slots: <img data-logo> in HTML templates, <image data-logo> inside converted artwork.
+  for (const img of doc.querySelectorAll('img[data-logo], image[data-logo]')) {
+    const attr = photoAttr(img);
+    if (!img.hasAttribute('data-commons-src')) img.setAttribute('data-commons-src', img.getAttribute(attr) || img.getAttribute('xlink:href') || '');
     const kind = img.getAttribute('data-logo') === 'square' ? 'square' : 'wide';
     const src = logoFor(brand, kind, img.getAttribute('data-logo-on') === 'dark') || img.getAttribute('data-commons-src');
-    if (img.getAttribute('src') !== src) img.setAttribute('src', src);
-    // A template may place a group's own logo differently from its built-in one (which can bleed off the page).
-    img.toggleAttribute('data-logo-own', src !== img.getAttribute('data-commons-src'));
+    if (img.getAttribute(attr) !== src) {
+      img.removeAttribute('xlink:href');
+      img.setAttribute(attr, src);
+    }
+    // A template may place a group's own logo differently from its built-in one (which can bleed off the page):
+    // HTML templates style [data-logo-own], artwork names the box for it in data-logo-box="x,y,width,height".
+    const own = src !== img.getAttribute('data-commons-src');
+    img.toggleAttribute('data-logo-own', own);
+    const box = img.getAttribute('data-logo-box');
+    if (box && attr === 'href') {
+      const sides = ['x', 'y', 'width', 'height'];
+      if (!img.hasAttribute('data-commons-box')) img.setAttribute('data-commons-box', sides.map((k) => img.getAttribute(k) ?? '').join(','));
+      const values = (own ? box : img.getAttribute('data-commons-box')).split(',');
+      sides.forEach((k, i) => (values[i] === '' || values[i] == null ? img.removeAttribute(k) : img.setAttribute(k, values[i].trim())));
+    }
   }
   for (const img of doc.querySelectorAll('img[data-qr]')) {
     const src = qrDataUri(brand[img.getAttribute('data-qr')]) || QR_PLACEHOLDER;
@@ -173,20 +187,23 @@ function fitTexts(doc) {
     el.removeAttribute('data-commons-fit');
   }
   const root = doc.documentElement.style;
-  if (!root.getPropertyValue('--brand-font-body') && !root.getPropertyValue('--brand-font-heading')) return;
+  const otherFonts = root.getPropertyValue('--brand-font-body') || root.getPropertyValue('--brand-font-heading');
   for (const page of doc.querySelectorAll('.page')) {
     const box = page.getBoundingClientRect();
     if (!box.width) continue;
-    for (const el of page.querySelectorAll('[data-edit]')) {
+    // Texts filled from the kit (a long group name) are always checked, and against the box the template gives
+    // them; texts of the template itself only when another group's fonts are in use.
+    for (const el of page.querySelectorAll(otherFonts ? '[data-edit], [data-brand]' : '[data-brand]')) {
       if (!el.textContent.trim() || el === doc.activeElement) continue;
       const range = doc.createRange();
       range.selectNodeContents(el);
       let r = range.getBoundingClientRect();
-      const outside = () => r.width > 0 && (r.right > box.right + 0.5 || r.left < box.left - 0.5);
+      const right = el.hasAttribute('data-brand') && el.parentElement ? Math.min(box.right, el.parentElement.getBoundingClientRect().right) : box.right;
+      const outside = () => r.width > 0 && (r.right > right + 0.5 || r.left < box.left - 0.5);
       if (!outside()) continue;
       const before = el.style.fontSize;
       let size = parseFloat(win.getComputedStyle(el).fontSize) || 0;
-      for (let i = 0; i < 10 && size > 4 && outside(); i++) {
+      for (let i = 0; i < 16 && size > 4 && outside(); i++) {
         size *= 0.95;
         el.style.fontSize = size + 'px';
         r = range.getBoundingClientRect();
@@ -233,22 +250,26 @@ async function serialize(doc, mode) {
     copy.removeAttribute('style');
     copy.querySelectorAll('link[data-commons-fonts]').forEach((e) => e.remove());
     for (const img of copy.querySelectorAll('img[data-qr]')) img.setAttribute('src', QR_PLACEHOLDER);
-    for (const img of copy.querySelectorAll('img[data-commons-src]')) img.setAttribute('src', img.getAttribute('data-commons-src'));
+    for (const img of copy.querySelectorAll('img[data-commons-src], image[data-commons-src]')) img.setAttribute(img.localName === 'image' ? 'href' : 'src', img.getAttribute('data-commons-src'));
+    for (const img of copy.querySelectorAll('[data-commons-box]')) img.getAttribute('data-commons-box').split(',').forEach((v, i) => (v === '' ? img.removeAttribute(['x', 'y', 'width', 'height'][i]) : img.setAttribute(['x', 'y', 'width', 'height'][i], v)));
   } else {
     copy.querySelectorAll('link[data-commons-fonts]').forEach((e) => e.removeAttribute('data-commons-fonts'));
-    for (const img of copy.querySelectorAll('img[src]')) {
-      const src = img.getAttribute('src');
+    // Pictures that are files on this site (photos, an example kit's logo) are put into the file itself.
+    for (const img of copy.querySelectorAll('img[src], image[data-logo][href]')) {
+      const attr = img.localName === 'image' ? 'href' : 'src';
+      const src = img.getAttribute(attr);
       if (/^(data:|https?:)/.test(src) || !base) continue;
       try {
         const res = await fetch(new URL(src, base));
         const blob = await res.blob();
-        img.setAttribute('src', await new Promise((ok) => Object.assign(new FileReader(), { onload: (e) => ok(e.target.result) }).readAsDataURL(blob)));
+        img.setAttribute(attr, await new Promise((ok) => Object.assign(new FileReader(), { onload: (e) => ok(e.target.result) }).readAsDataURL(blob)));
       } catch {
         /* leave the relative path */
       }
     }
   }
   for (const img of copy.querySelectorAll('[data-commons-src]')) img.removeAttribute('data-commons-src');
+  for (const img of copy.querySelectorAll('[data-commons-box]')) img.removeAttribute('data-commons-box');
   for (const el of copy.querySelectorAll('[data-commons-photo]')) el.removeAttribute('data-commons-photo');
   return '<!doctype html>\n' + copy.outerHTML;
 }
@@ -280,6 +301,10 @@ export function watchPreviews(root) {
     { rootMargin: '400px' },
   );
   for (const el of root.querySelectorAll('[data-template]:not([data-mounted])')) observer.observe(el);
+}
+// Puts every preview that is already on the page into another kit's look, without loading anything again.
+export function redressPreviews(root, brand = getBrand()) {
+  for (const box of root.querySelectorAll('[data-template][data-mounted]')) box._redress?.(brand);
 }
 export async function mountPreview(box, brand = getBrand()) {
   box.setAttribute('data-mounted', '');
@@ -313,10 +338,14 @@ export async function mountPreview(box, brand = getBrand()) {
       doc.head.append(style);
     }
     const fork = store.get(`commons_fork_${item.slug}`, {});
-    dress(doc, brand, fork.edits || {}, false, fork.photos || {});
+    dress(doc, box._brand || brand, fork.edits || {}, false, fork.photos || {});
     fit();
     frame.style.visibility = '';
     box.querySelector('img')?.remove();
+  };
+  box._redress = (b) => {
+    box._brand = b;
+    if (shown) show();
   };
   whenParsed(frame, show);
   frame.addEventListener('load', show);

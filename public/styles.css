@@ -107,7 +107,8 @@ main { width: min(1180px, 100% - 40px - 2 * var(--safe-x)); margin: 0 auto; flex
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; transition: box-shadow 0.15s, border-color 0.15s; }
 .card:hover { border-color: var(--pink-b); box-shadow: 0 8px 24px rgba(59, 29, 18, 0.08); }
 .thumb { position: relative; display: block; aspect-ratio: 4 / 3; background: var(--pink); border-bottom: 1px solid var(--line); overflow: hidden; text-decoration: none; color: var(--ink); }
-.thumb img.cover { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A tall printable (a banner, a document) shows its top, where its title is, not a strip from its middle. */
+.thumb img.cover { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
 .thumb img.contain { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 14px; }
 .thumb iframe { position: absolute; border: 0; transform-origin: 0 0; pointer-events: none; background: #fff; box-shadow: 0 4px 18px rgba(59, 29, 18, 0.16); }
 .thumb .live { z-index: 2; position: absolute; left: 10px; bottom: 10px; font-size: 11px; font-weight: 600; background: rgba(255, 255, 255, 0.92); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; color: var(--muted); }
