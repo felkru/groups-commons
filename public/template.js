@@ -67,6 +67,13 @@ const cleanFragment = (html) => {
 };
 
 // Apply saved text edits, then the brand kit, to a loaded frame document.
+// Shows or hides a piece of a template (HTML or SVG).
+const show = (el, on) => {
+  el.toggleAttribute('hidden', !on);
+  el.style.display = on ? '' : 'none';
+};
+// The name under which a replacement picture for a logo is kept: the slot's own name, or its kind.
+const logoKey = (img) => img.getAttribute('data-logo-slot') || 'logo-' + (img.getAttribute('data-logo') === 'square' ? 'square' : 'wide');
 const photoAttr = (el) => (el.namespaceURI === 'http://www.w3.org/2000/svg' ? 'href' : 'src');
 function setPhoto(el, url) {
   if (!el.hasAttribute('data-commons-photo')) el.setAttribute('data-commons-photo', el.getAttribute(photoAttr(el)) || el.getAttribute('xlink:href') || '');
@@ -137,16 +144,31 @@ export function dress(doc, brand, edits = {}, editable = false, photos = {}) {
   }
   // Wording that only fits the group the template came from (its legal form after the name, "e.V.") is left out
   // under any other group's name.
-  for (const el of doc.querySelectorAll('[data-brand-own]')) el.toggleAttribute('hidden', !ownDetails);
-  // Logo slots: <img data-logo> in HTML templates, <image data-logo> inside converted artwork.
+  for (const el of doc.querySelectorAll('[data-brand-own]')) show(el, ownDetails);
+  // A text that names the original group's event (a banner's title) carries the group's name under another kit,
+  // unless the visitor has typed their own.
+  for (const el of doc.querySelectorAll('[data-brand-other]')) {
+    if (!el.hasAttribute('data-commons-own-text')) el.setAttribute('data-commons-own-text', el.getAttribute('data-commons-original') ?? el.innerHTML);
+    const key = el.getAttribute('data-edit');
+    if ((key && edits[key] != null) || doc.activeElement === el) continue;
+    const v = String(brand[el.getAttribute('data-brand-other')] || '').trim();
+    if (!ownDetails && v) {
+      if (el.textContent !== v) el.textContent = v;
+    } else if (el.innerHTML !== el.getAttribute('data-commons-own-text')) el.innerHTML = el.getAttribute('data-commons-own-text');
+    // Not an edit of the visitor's: what "changed" is measured against is this text.
+    if (el.hasAttribute('data-commons-original')) el.setAttribute('data-commons-original', el.innerHTML);
+  }
+  // Logo slots: <img data-logo> in HTML templates, <image data-logo> inside converted artwork. A picture the
+  // visitor chose for a slot (click on the logo) wins over the kit's logo.
   for (const img of doc.querySelectorAll('img[data-logo], image[data-logo]')) {
     const attr = photoAttr(img);
     if (!img.hasAttribute('data-commons-src')) img.setAttribute('data-commons-src', img.getAttribute(attr) || img.getAttribute('xlink:href') || '');
     const kind = img.getAttribute('data-logo') === 'square' ? 'square' : 'wide';
-    const src = logoFor(brand, kind, img.getAttribute('data-logo-on') === 'dark') || img.getAttribute('data-commons-src');
-    if (img.getAttribute(attr) !== src) {
+    const src = photos['@' + logoKey(img)] || logoFor(brand, kind, img.getAttribute('data-logo-on') === 'dark') || img.getAttribute('data-commons-src');
+    if ((img.getAttribute(attr) || '') !== src) {
       img.removeAttribute('xlink:href');
-      img.setAttribute(attr, src);
+      if (src) img.setAttribute(attr, src);
+      else img.removeAttribute(attr); // a slot that is empty in the template's own look
     }
     // A template may place a group's own logo differently from its built-in one (which can bleed off the page):
     // HTML templates style [data-logo-own], artwork names the box for it in data-logo-box="x,y,width,height".
@@ -159,6 +181,11 @@ export function dress(doc, brand, edits = {}, editable = false, photos = {}) {
       const values = (own ? box : img.getAttribute('data-commons-box')).split(',');
       sides.forEach((k, i) => (values[i] === '' || values[i] == null ? img.removeAttribute(k) : img.setAttribute(k, values[i].trim())));
     }
+  }
+  // Drawn artwork that is the template's own logo (an emblem made of shapes) gives way once its slot shows a picture.
+  for (const el of doc.querySelectorAll('[data-logo-for]')) {
+    const slot = doc.querySelector(`[data-logo-slot="${CSS.escape(el.getAttribute('data-logo-for'))}"]`);
+    show(el, !(slot && (slot.getAttribute(photoAttr(slot)) || '')));
   }
   for (const img of doc.querySelectorAll('img[data-qr]')) {
     const src = qrDataUri(brand[img.getAttribute('data-qr')]) || QR_PLACEHOLDER;
@@ -197,7 +224,7 @@ function fitTexts(doc) {
     // Texts filled from the kit (a long group name), and the texts they stand in, are always checked; the other
     // texts of the template only when another group's fonts are in use.
     const targets = new Set();
-    for (const el of page.querySelectorAll('[data-brand]')) targets.add(el.closest('[data-edit]') || el);
+    for (const el of page.querySelectorAll('[data-brand], [data-brand-other]')) targets.add(el.closest('[data-edit]') || el);
     if (otherFonts) for (const el of page.querySelectorAll('[data-edit]')) targets.add(el);
     for (const el of targets) {
       if (!el.textContent.trim() || el === doc.activeElement) continue;
@@ -205,7 +232,7 @@ function fitTexts(doc) {
       range.selectNodeContents(el);
       let r = range.getBoundingClientRect();
       // A text from the kit stays inside the box its template gives it, every text stays on its page.
-      const right = el.hasAttribute('data-brand') && el.parentElement ? Math.min(box.right, el.parentElement.getBoundingClientRect().right) : box.right;
+      const right = (el.hasAttribute('data-brand') || el.hasAttribute('data-brand-other')) && el.parentElement ? Math.min(box.right, el.parentElement.getBoundingClientRect().right) : box.right;
       const outside = () => r.width > 0 && (r.right > right + 0.5 || r.left < box.left - 0.5);
       // Converted artwork (.tx) places every line by itself: more lines than the text has means one has wrapped.
       const lines = el.closest('.tx') ? el.textContent.replace(/\s+$/, '').split('\n').length : 0;
@@ -228,6 +255,8 @@ function fitTexts(doc) {
   }
 }
 
+// The visitor's own text edits in a frame document (see readEdits).
+const editsOf = (doc) => readEdits(doc);
 function readEdits(doc) {
   const edits = {};
   for (const el of doc.querySelectorAll('[data-edit]')) {
@@ -250,7 +279,15 @@ async function serialize(doc, mode) {
     el.removeAttribute('data-commons-fit');
   }
   if (mode === 'share') for (const img of copy.querySelectorAll('[data-logo-own]')) img.removeAttribute('data-logo-own');
-  if (mode === 'share') for (const el of copy.querySelectorAll('[data-brand-own]')) el.removeAttribute('hidden');
+  if (mode === 'share') for (const el of copy.querySelectorAll('[data-brand-own], [data-logo-for]')) {
+    el.removeAttribute('hidden');
+    el.style.display = '';
+    if (!el.getAttribute('style')) el.removeAttribute('style');
+  }
+  for (const el of copy.querySelectorAll('[data-commons-own-text]')) {
+    if (mode === 'share' && !(el.getAttribute('data-edit') in (editsOf(doc) || {}))) el.innerHTML = el.getAttribute('data-commons-own-text');
+    el.removeAttribute('data-commons-own-text');
+  }
   const base = copy.querySelector('base[data-commons]')?.getAttribute('href');
   copy.querySelectorAll('[data-commons]').forEach((e) => e.remove());
   for (const el of copy.querySelectorAll('[contenteditable]')) {
@@ -417,7 +454,7 @@ export function mountEditor(stage, opts) {
     dress(doc, getBrand(), edits, true, photos);
     const hint = doc.createElement('style');
     hint.setAttribute('data-commons', '');
-    hint.textContent = '[data-photo],[data-photo-ref]{cursor:pointer}[data-photo]:hover,[data-photo-ref]:hover{outline:4px solid rgba(200,68,47,.75);outline-offset:-4px}';
+    hint.textContent = '[data-photo],[data-photo-ref],[data-logo],[data-logo-for],use{cursor:pointer}[data-photo]:hover,[data-photo-ref]:hover,img[data-logo]:hover{outline:4px solid rgba(200,68,47,.75);outline-offset:-4px}image[data-logo]:hover,[data-logo-for]:hover{opacity:.72}';
     doc.head.append(hint);
     try {
       doc.addEventListener('input', persist);
@@ -425,7 +462,13 @@ export function mountEditor(stage, opts) {
         const hit = e.target.closest?.('[data-photo], [data-photo-ref]');
         // Converted artwork stores a picture once and draws it with <use>; the stored picture is the one to replace.
         const slot = hit?.hasAttribute('data-photo') ? hit : hit && doc.querySelector(`[data-photo="${CSS.escape(hit.getAttribute('data-photo-ref'))}"]`);
-        if (slot) pickPhoto(slot);
+        if (slot) return pickPhoto(slot);
+        // A logo: the slot itself, the drawn emblem that stands in for it, or a place where the artwork repeats it.
+        const direct = e.target.closest?.('[data-logo], [data-logo-for]');
+        const use = !direct && e.target.closest?.('use');
+        const repeated = use && doc.getElementById((use.getAttribute('href') || use.getAttribute('xlink:href') || '').slice(1));
+        const logo = direct?.hasAttribute('data-logo-for') ? doc.querySelector(`[data-logo-slot="${CSS.escape(direct.getAttribute('data-logo-for'))}"]`) : direct || (repeated?.hasAttribute('data-logo') ? repeated : null);
+        if (logo) pickPhoto(logo);
       });
     } catch {}
     fit();
@@ -444,7 +487,7 @@ export function mountEditor(stage, opts) {
   // Replacing a photo: the visitor picks a file, it is scaled down in the browser and kept with their other edits.
   const picker = document.createElement('input');
   picker.type = 'file';
-  picker.accept = 'image/jpeg,image/png,image/webp';
+  picker.accept = 'image/jpeg,image/png,image/webp,image/svg+xml';
   picker.hidden = true;
   let target = null;
   function pickPhoto(slot) {
@@ -456,6 +499,26 @@ export function mountEditor(stage, opts) {
     const file = picker.files?.[0];
     if (!file || !target) return;
     try {
+      if (target.hasAttribute('data-logo')) {
+        // A logo keeps its transparency (PNG) or stays a drawing (SVG); every place that shows this logo follows.
+        let url;
+        if (file.type === 'image/svg+xml') url = await new Promise((ok, no) => Object.assign(new FileReader(), { onload: (e) => ok(e.target.result), onerror: no }).readAsDataURL(file));
+        else {
+          const bitmap = await createImageBitmap(file);
+          const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(bitmap.width * scale);
+          canvas.height = Math.round(bitmap.height * scale);
+          canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          url = canvas.toDataURL('image/png');
+        }
+        photos = { ...photos, ['@' + logoKey(target)]: url };
+        dress(frame.contentDocument, getBrand(), edits, true, photos);
+        save();
+        opts.onChange?.(edits);
+        return;
+      }
+      if (file.type === 'image/svg+xml') throw new Error('not a photo');
       const bitmap = await createImageBitmap(file);
       const scale = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height));
       const canvas = document.createElement('canvas');
