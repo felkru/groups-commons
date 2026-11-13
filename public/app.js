@@ -329,8 +329,13 @@ function openIntro() {
     video.setAttribute('src', '/assets/intro.mp4');
   }
   if (!dialog.open) dialog.showModal();
-  video.currentTime = 0;
-  video.play().catch(() => {});
+  // Safari starts a video reliably only once it has something to play: begin at the start when it is loaded,
+  // and try again as soon as the first frames are there.
+  if (video.readyState > 0) video.currentTime = 0;
+  const start = () => dialog.open && video.paused && video.play().catch(() => {});
+  video.addEventListener('canplay', start, { once: true });
+  if (video.readyState === 0) video.load();
+  start();
 }
 $('#intro').addEventListener('close', () => $('#intro video').pause());
 $('#intro').addEventListener('click', (e) => {
