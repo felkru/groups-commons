@@ -318,43 +318,30 @@ document.addEventListener('click', (e) => {
   navigator.clipboard?.writeText(tryItPrompt()).catch(() => {});
 });
 
-// The intro: a short video of the main way to use the commons, with music. Shown once, on the first visit.
-// byVisitor: the visitor asked for it with a click, so it may play with sound. When it opens by itself, browsers
-// only allow muted playback: then a "Sound on" button sits on the video.
-function openIntro(byVisitor = false) {
+// The intro: a short video of the main way to use the commons, with music. Its dialog opens once, on the first
+// visit, but the video never starts by itself: the visitor presses play. A click on "Watch the intro" is such a
+// request, so then it starts right away (play = true).
+function openIntro(play = false) {
   const dialog = $('#intro');
   const video = $('video', dialog);
-  const soundBtn = $('#intro-sound');
+  const playBtn = $('#intro-play');
   if (!video.getAttribute('src')) {
     // A copy of the site without the video file (it is not in the public repository) shows the text alone.
-    video.addEventListener('error', () => { video.hidden = true; soundBtn.hidden = true; }, { once: true });
-    video.addEventListener('volumechange', () => { soundBtn.hidden = !video.muted || video.hidden; });
-    soundBtn.addEventListener('click', () => {
-      video.muted = false;
-      video.currentTime = 0;
+    video.addEventListener('error', () => { video.hidden = true; playBtn.hidden = true; }, { once: true });
+    // The large button is there while the video rests at its start or its end.
+    const sync = () => { playBtn.hidden = video.hidden || !video.paused || (video.currentTime > 0.05 && !video.ended); };
+    for (const type of ['play', 'pause', 'ended', 'seeked']) video.addEventListener(type, sync);
+    playBtn.addEventListener('click', () => {
+      if (video.ended) video.currentTime = 0;
       video.play().catch(() => {});
     });
     video.setAttribute('poster', '/assets/intro-poster.jpg');
     video.setAttribute('src', '/assets/intro.mp4');
   }
   if (!dialog.open) dialog.showModal();
-  video.muted = !byVisitor;
-  soundBtn.hidden = !video.muted || video.hidden;
-  // Safari starts a video reliably only once it has something to play: begin at the start when it is loaded,
-  // and try again as soon as the first frames are there.
   if (video.readyState > 0) video.currentTime = 0;
-  const start = () => {
-    if (!dialog.open || !video.paused) return;
-    video.play().catch(() => {
-      // Not allowed with sound after all (no click the browser counts): play muted and offer the button.
-      if (video.muted) return;
-      video.muted = true;
-      video.play().catch(() => {});
-    });
-  };
-  video.addEventListener('canplay', start, { once: true });
-  if (video.readyState === 0) video.load();
-  start();
+  playBtn.hidden = video.hidden || play;
+  if (play) video.play().catch(() => { playBtn.hidden = video.hidden; });
 }
 $('#intro').addEventListener('close', () => $('#intro video').pause());
 $('#intro').addEventListener('click', (e) => {
