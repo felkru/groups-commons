@@ -49,13 +49,13 @@
   #end p { font-size: 24px; color: #86695d; margin: 26px 0 0; max-width: 40ch; line-height: 1.4; }
 </style></head>
 <body>
-<div class="scene" id="title"><div class="brandline"><i></i>Groups Commons</div><h1>One sentence in. <em>Your event’s marketing out.</em></h1><p></p></div>
+<div class="scene" id="title"><div class="brandline"><svg viewBox="0 0 64 64" width="30" height="30"><rect width="64" height="64" rx="16" fill="#c8442f"/><rect x="24" y="13" width="25" height="31" rx="5.5" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="3.6"/><rect x="15" y="21" width="25" height="31" rx="5.5" fill="#fff"/><path d="M21.5 31.5h12M21.5 38.5h12M21.5 45.5h7" stroke="#c8442f" stroke-width="3.2" stroke-linecap="round"/></svg>Groups Commons</div><h1>One sentence in. <em>Your event’s marketing out.</em></h1><p></p></div>
 <div class="scene" id="term"><div class="win"><div class="bar"><b style="background:#ff5f57"></b><b style="background:#febc2e"></b><b style="background:#28c840"></b><span>claude · ai-safety-nordhaven</span></div><div id="xterm"></div></div><div class="caption" id="tcap"></div></div>
 <div class="scene" id="todo"><div class="scenetitle"></div><div class="sheet"></div><div class="caption" id="dcap"></div></div>
 <div class="scene" id="results"><div class="scenetitle"></div><div id="items"></div><div class="caption" id="rcap"></div></div>
 <div class="scene" id="msgs"><div class="scenetitle"></div><div class="grid" id="cards"></div><div class="caption" id="mcap"></div></div>
 <div class="scene" id="claim"><h1></h1><p></p></div>
-<div class="scene" id="end"><div class="brandline"><i></i>Groups Commons</div><h1>Use it <em>through Claude.</em></h1><div class="btn">Try it</div><p></p></div>
+<div class="scene" id="end"><div class="brandline"><svg viewBox="0 0 64 64" width="30" height="30"><rect width="64" height="64" rx="16" fill="#c8442f"/><rect x="24" y="13" width="25" height="31" rx="5.5" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="3.6"/><rect x="15" y="21" width="25" height="31" rx="5.5" fill="#fff"/><path d="M21.5 31.5h12M21.5 38.5h12M21.5 45.5h7" stroke="#c8442f" stroke-width="3.2" stroke-linecap="round"/></svg>Groups Commons</div><h1>Use it <em>through Claude.</em></h1><div class="btn">Try it</div><p></p></div>
 <script src="xterm.js"></script>
 <script>
 // Everything on screen is a pure function of the time t (seconds), so frames can be captured one by one.
@@ -117,27 +117,29 @@ function show(id, t, a, b, fade = 0.35) {
   $(id).style.opacity = o;
   return o > 0;
 }
-const slide = (el, r, delay, dx = 0, dy = 24) => { const k = ease((r - delay) / 0.55); el.style.opacity = k; el.style.transform = `translate(${(1 - k) * dx}px, ${(1 - k) * dy}px)`; };
+const slide = (el, r, delay, dx = 0, dy = 24) => { const k = ease((r - delay) / (cfg.slide || 0.55)); el.style.opacity = k; el.style.transform = `translate(${(1 - k) * dx}px, ${(1 - k) * dy}px)`; };
 const captionAt = (list, r) => { const c = (list || []).filter((x) => r >= x[0]).pop(); return c ? c[1] : ''; };
 
 async function setTime(t) {
   const s = cfg.scenes;
+  // When the entries of a scene come in: [first, step] in seconds after the scene starts (set to the beat of the music).
+  const st = { todo: [0.2, 0.32], results: [0.15, 0.7], cards: [0.1, 0.65], ...(cfg.stagger || {}) };
   if (show('#title', t, s.title[0], s.title[1])) $('#title h1').style.transform = `translateY(${(1 - ease((t - s.title[0]) / 0.6)) * 18}px)`;
   if (t >= s.term[0] - 0.5) await feedTo(castAt(t));
   if (show('#term', t, s.term[0], s.term[1])) $('#tcap').innerHTML = captionAt(cfg.term_captions, t);
   if (show('#todo', t, s.todo[0], s.todo[1])) {
     const r = t - s.todo[0];
-    $$('#todo .line').forEach((el, i) => slide(el, r, 0.2 + i * 0.32, -18, 0));
+    $$('#todo .line').forEach((el, i) => slide(el, r, st.todo[0] + i * st.todo[1], -18, 0));
     $('#dcap').innerHTML = captionAt(cfg.todo_captions, r);
   }
   if (show('#results', t, s.results[0], s.results[1])) {
     const r = t - s.results[0];
-    $$('#results .item').forEach((el, i) => slide(el, r, 0.15 + i * 0.7));
+    $$('#results .item').forEach((el, i) => slide(el, r, st.results[0] + i * st.results[1]));
     $('#rcap').innerHTML = captionAt(cfg.result_captions, r);
   }
   if (show('#msgs', t, s.msgs[0], s.msgs[1])) {
     const r = t - s.msgs[0];
-    $$('.cardx').forEach((el, i) => slide(el, r, 0.1 + i * 0.65, 0, 20));
+    $$('.cardx').forEach((el, i) => slide(el, r, st.cards[0] + i * st.cards[1], 0, 20));
     $('#mcap').innerHTML = captionAt(cfg.msg_captions, r);
   }
   if (show('#claim', t, s.claim[0], s.claim[1])) $('#claim h1').style.transform = `translateY(${(1 - ease((t - s.claim[0]) / 0.6)) * 18}px)`;

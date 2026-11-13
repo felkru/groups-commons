@@ -237,6 +237,10 @@ dialog.intro { width: min(860px, 94vw); padding: 26px 28px 24px; }
 dialog.intro h2 { font-size: 30px; margin: 0 40px 14px 0; }
 dialog.intro h2 em, .hero-actions em { font-style: italic; color: var(--red); }
 dialog.intro video { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 12px; background: #1d1614; display: block; }
+dialog.intro .player { position: relative; }
+dialog.intro .sound { position: absolute; top: 12px; right: 12px; gap: 7px; padding: 7px 13px; font-size: 14px; background: rgba(255, 255, 255, 0.94); border-color: transparent; box-shadow: 0 2px 10px rgba(29, 22, 20, 0.25); }
+dialog.intro .sound svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+dialog.intro .sound svg path:first-child { fill: currentColor; }
 dialog.intro .steps { margin: 16px 0 18px; padding-left: 1.3em; font-size: 15.5px; display: grid; gap: 5px; }
 dialog.intro .x { position: absolute; top: 14px; right: 16px; border: 0; background: transparent; font-size: 30px; line-height: 1; cursor: pointer; color: var(--muted); }
 .hero-actions { margin-top: 20px; }
