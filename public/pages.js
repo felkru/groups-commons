@@ -3,7 +3,7 @@
 import { adminToken, api, store, uploadItem } from './api.js';
 import { DEFAULT_BRAND, FONTS, PRESETS, activePreset, applyPreset, findFont, getBrand, isDefaultBrand, logoFromMark, monogram, paletteFrom, resetBrand, setBrand, suggestBrand } from './brand.js';
 import { go } from './app.js';
-import { mountEditor, mountPreview } from './template.js';
+import { mountPreview } from './template.js';
 import { $, $$, cmd, download, esc, state, toast, todo } from './ui.js';
 
 // ---------------------------------------------------------------- brand kit
@@ -205,25 +205,16 @@ export async function addPage(root) {
       </form>
     </section>
 
-    <section class="panel form">
+    <section class="panel">
       <h2>Turn a finished printable into a template</h2>
-      <p class="small muted" style="max-width:75ch">Upload a flyer, poster, sign or slide. Your design is kept as it is: the artwork and photos stay untouched, the text becomes editable text at the same place, and your colours become the brand colours another group can swap. A PDF converts in seconds without any AI. For an image, an image model first removes the baked-in text from the picture. Check the result, fix texts in place, then publish it.</p>
-      ${state.meta.conversion ? '' : '<div class="notice">The conversion agent is switched off on this server.</div>'}
-      <div class="two">
-        <label>Printable (PDF is best; PNG, JPG or WebP also work; up to 25 MB)<input type="file" id="printable" accept="application/pdf,image/png,image/jpeg,image/webp"></label>
-        <label>Anything the agent should know? (optional)<input id="hint" maxlength="300" placeholder="e.g. A5 flyer for our intro talk"></label>
-      </div>
-      <div class="row"><button type="button" class="btn primary" id="convert" ${state.meta.conversion ? '' : 'disabled'}>Convert to a template</button><span class="small muted" id="progress"></span></div>
-      <div id="converted" hidden style="margin-top:16px">
-        <div class="stage"></div>
-        <p class="hint">Click or tap any text to fix it. The preview uses your brand kit.</p>
-        <form id="save" style="margin-top:12px">
-          <div class="two"><label>Title<input name="title" maxlength="90" required></label><label>Category<select name="category">${cats}</select></label></div>
-          <label>What is it, and when did it work well?<textarea name="summary" maxlength="400" required></textarea></label>
-          <p class="err" data-err></p>
-          <button class="btn primary">Publish this template</button>
-        </form>
-      </div>
+      <p class="small muted" style="max-width:75ch">A template is a flyer, poster, sign or slide that another group opens in its own colours, fonts, logo and name. This site does not convert files. Your own AI assistant does it on your computer, and nothing is uploaded before you have seen the result. From a PDF the design is kept as it is and the text becomes editable; from a picture the assistant rebuilds the design by hand.</p>
+      <p class="small muted">Start your assistant in the folder where the file is and ask:</p>
+      ${cmd('Turn flyer.pdf into a Groups Commons template in our look and share it')}
+      <p class="small muted">The assistant needs the commons command line tool and its skill. One line installs both:</p>
+      <p><button type="button" class="btn" data-agent-setup>Set up my AI</button></p>
+      <p class="small muted">Or run it yourself in the terminal. This works for PDFs and needs the poppler tools; the first command says how to install them if they are missing. Before you add the folder, open <code>my-flyer/template.html</code> and check which pictures are your logo: <code>commons contract</code> says how they are marked.</p>
+      ${cmd('commons convert flyer.pdf --out my-flyer')}
+      ${cmd('commons add my-flyer')}
     </section>
 
     <section class="panel">
@@ -271,61 +262,6 @@ export async function addPage(root) {
       btn.textContent = 'Add to the commons';
     }
   });
-
-  // conversion
-  let editor = null;
-  let ticker;
-  $('#convert', root).addEventListener('click', async () => {
-    const file = $('#printable', root).files[0];
-    const progress = $('#progress', root);
-    if (!file) return (progress.textContent = 'Choose a file first.');
-    if (file.size > 25 * 1048576) return (progress.textContent = 'That file is larger than 25 MB.');
-    const btn = $('#convert', root);
-    btn.disabled = true;
-    const started = Date.now();
-    ticker = setInterval(() => (progress.textContent = `${file.type === 'application/pdf' ? 'Converting your PDF' : 'Removing the text from the picture and setting it again as editable text, about two minutes'} (${Math.round((Date.now() - started) / 1000)} s)…`), 1000);
-    try {
-      const r = await api(`/convert?hint=${encodeURIComponent($('#hint', root).value)}`, { method: 'POST', raw: file, type: file.type });
-      clearInterval(ticker);
-      // Files that belong to the template (a background picture) are put into the page itself, so one file holds it all.
-      for (const f of r.files || []) r.html = r.html.split(`"${f.path}"`).join(`"data:${f.type};base64,${f.data}"`);
-      const rep = r.report || {};
-      const facts = [r.pages > 1 ? `${r.pages} pages` : '', rep.editable != null ? `${rep.editable} editable texts` : '', rep.photos != null ? `${rep.photos} photos kept` : ''].filter(Boolean).join(', ');
-      progress.textContent = r.method === 'rebuilt' ? `Rebuilt by AI in ${r.seconds} s (${r.model}). The design is simplified; a PDF would keep the original.` : `Done in ${r.seconds} s: original design kept${facts ? ` (${facts})` : ''}.`;
-      for (const w of (rep.warnings || []).slice(0, 3)) progress.textContent += ` Note: ${w}`;
-      $('#converted', root).hidden = false;
-      editor?.destroy();
-      editor = mountEditor($('#converted .stage', root), { html: r.html, base: '/assets/brand/' });
-      const save = $('#save', root);
-      if (!save.elements.title.value) save.elements.title.value = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').slice(0, 80) + ' (template)';
-      save.elements.category.value = 'print';
-    } catch (ex) {
-      clearInterval(ticker);
-      progress.textContent = ex.message;
-    }
-    btn.disabled = false;
-  });
-  $('#save', root).addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const save = e.target;
-    const err = $('[data-err]', save);
-    err.textContent = '';
-    try {
-      const html = await editor.shareHtml();
-      const r = await uploadItem(
-        { kind: 'template', title: save.elements.title.value, category: save.elements.category.value, summary: save.elements.summary.value, group: brand.group_name, source: 'adapted', provenance: 'Converted from a finished printable by the conversion agent.', template: { path: 'template.html', format: editor.format || undefined } },
-        [{ path: 'template.html', data: html, type: 'text/html' }],
-      );
-      toast(r.status === 'published' ? 'Published' : 'Thank you! It appears for everyone after review.');
-      go(`/m/${r.slug}`);
-    } catch (ex) {
-      err.textContent = ex.message;
-    }
-  });
-  return () => {
-    clearInterval(ticker);
-    editor?.destroy();
-  };
 }
 
 // ---------------------------------------------------------------- CLI & agents
@@ -398,14 +334,14 @@ export async function aboutPage(root) {
           ${row('Quality rises to the top', 'One vote per visitor, up or down, like Reddit. “Best” (the default) is upvotes ÷ uses × ln(uses), so a material that many people used and liked beats one with a few early votes. “Hot” mixes votes with age.', 'live', 'Works')}
           ${row('Design consistency', 'A brand kit with colour, fonts, square and wide logo. Every template re-skins itself, including QR codes to your join link. A generator suggests palettes, font pairings and a monogram logo.', 'live', 'Works')}
           ${row('Easy customization', 'Templates open in an editor in the browser: click text to change it, print to PDF, download as HTML, share your version as a fork.', 'live', 'Works')}
-          ${row('Printables become templates', 'An agent on the server rebuilds an uploaded PDF or image as a re-brandable template.', 'live', 'Works, quality varies')}
+          ${row('Printables become templates', 'The organizer’s own assistant turns a finished flyer or poster into a re-brandable template, on the organizer’s computer. <code>commons convert</code> keeps a PDF’s design and makes its text editable; a picture is rebuilt by hand from the <a href="/cli/TEMPLATE.md" target="_blank" rel="noopener">template contract</a>. The site converts nothing itself.', 'live', 'Works, needs a check')}
           ${row('Use through Claude', 'An MCP server lets Claude search the commons, read materials, prepare them in a group’s look and share versions back. A command line tool and a Claude Code skill do the same in the terminal. Search matches by meaning, using text embeddings.', 'live', 'Works')}
           ${row('Low transaction costs', 'Message templates fill themselves in from your brand kit and open in your mail app or WhatsApp. Supplier pages come with a ready quote request. Kits are checklists with buy links.', 'live', 'Works')}
           ${row('Moderation', 'Materials and group websites added on the web wait for approval. Moderators approve or reject them on the <a href="/moderate">moderation page</a>, and can make other accounts moderators.', 'live', 'Works')}
           ${row('Accounts', '<a href="/account">Accounts</a> with user name and password tie votes, materials, brand kit and website to a person instead of a browser. Without an account everything except hosting a website still works. Password reset and university sign-in are not built.', 'part', 'Works, basic')}
           ${row('Competitions', 'A <a href="/leaderboard">leaderboard</a> ranks the materials added in the running semester and the groups behind them. Prizes are not decided.', 'part', 'Works, no prizes')}
           ${row('Hosted websites', 'The website template can be published as a group website at /s/your-group with one click, after review. Own domains and server access are not built.', 'part', 'Works, no own domain')}
-          ${row('Office files', 'PowerPoint, Word and Excel files get page previews in the browser, like PDFs. They cannot be converted to re-brandable templates yet.', 'part', 'Previews work')}
+          ${row('Office files', 'PowerPoint, Word and Excel files get page previews in the browser, like PDFs. To make a re-brandable template from one, export it as PDF first.', 'part', 'Previews work')}
           ${row('AI logo generation', 'The brand kit draws four logo options from your group name and a motif, as vector graphics in your brand colours, with square, wide and dark-background variants.', 'live', 'Works')}
         </tbody>
       </table>

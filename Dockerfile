@@ -1,7 +1,9 @@
-# Debian 13: its poppler and cairo write the SVG form the PDF converter was verified with.
+# Debian 13.
 FROM node:22-trixie-slim
 
-# pdftoppm renders pages of uploaded PDFs as preview images; LibreOffice turns Office files into PDFs for the same purpose.
+# pdftoppm (poppler) renders pages of uploaded PDFs as preview images; LibreOffice turns Office files into PDFs for the
+# same purpose. The PDF -> template converter (server/convert-pdf.js) does not run here: the site serves it as a file
+# and the commons CLI runs it on the organizer's computer.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends poppler-utils libreoffice-impress libreoffice-writer libreoffice-calc fonts-liberation fonts-dejavu-core fonts-noto-core \
   && rm -rf /var/lib/apt/lists/*

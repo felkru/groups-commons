@@ -24,6 +24,10 @@ How to use it for an organizer:
      codes and a Print / Save as PDF button. Give the organizer that link.
 4. If the organizer made a version worth sharing, ask whether they want to share it back, and only then call
    share_material. Never include names of private people, phone numbers, private links or amounts in what you share.
+5. To turn the organizer's own finished flyer, poster or slide into a template that other groups can re-brand, write
+   the HTML yourself, following the template contract at __ORIGIN__/cli/TEMPLATE.md, and share it with share_material
+   (kind "template"). The site does not convert files. Where you have a terminal, the commons command line tool
+   converts a PDF on the organizer's computer: commons convert flyer.pdf
 Votes and use counts on the seed materials are simulated.`;
 
 const TOOLS = [
@@ -99,7 +103,7 @@ const TOOLS = [
         link: { type: 'object', description: 'For kind "link".', properties: { url: { type: 'string' }, label: { type: 'string' } } },
         kit: { type: 'object', description: 'For kind "kit": { est_cost, items: [{ name, qty, note, url }] }.' },
         supplier: { type: 'object', description: 'For kind "supplier": { type, name, location, good_for, website, request: { subject, body } }. Business name only, no contact persons.' },
-        template_html: { type: 'string', description: 'For kind "template": the complete HTML file.' },
+        template_html: { type: 'string', description: 'For kind "template": the complete HTML file, written to the template contract (/cli/TEMPLATE.md on this site; the server instructions give the address). Pictures go inside the file, as inline SVG or data: URIs.' },
       },
       required: ['title', 'kind', 'category', 'summary', 'group'],
     },
@@ -220,7 +224,7 @@ export function mountMcp(app, deps) {
           protocolVersion: VERSIONS.includes(p.protocolVersion) ? p.protocolVersion : VERSIONS[0],
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: 'groups-commons', title: 'Groups Commons', version: '0.1.0' },
-          instructions: INSTRUCTIONS,
+          instructions: INSTRUCTIONS.replaceAll('__ORIGIN__', origin(req)),
         });
       case 'ping':
         return ok(msg.id, {});

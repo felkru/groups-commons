@@ -33,7 +33,8 @@ If `~/.local/bin` is not on the PATH, run it as `node ~/.local/bin/commons`. No 
    it came from in `.commons.json`.
 4. **Adapt it** to the user's group: fill the `[Placeholders]`, change dates, language, tone and branding. For
    `text` materials edit the `variants` in `item.json`; for `template` materials edit `template.html` (keep the
-   `data-brand`, `data-edit`, `data-logo` and `data-qr` attributes, they make the template re-brandable); for
+   `data-brand`, `data-edit`, `data-logo`, `data-photo` and `data-qr` attributes, they make the template
+   re-brandable; `commons contract` explains them); for
    `file` materials edit or replace the files. Update `title`, `summary` and `group` in `item.json` to describe
    the new version. Templates can also be customized and printed to PDF in the browser at
    `__DEFAULT_URL__/m/<slug>`.
@@ -89,6 +90,42 @@ Use these exact placeholders where they apply, the site fills them from the read
 `[Group name]`, `[University]`, `[City]`, `[Website]`, `[Contact email]`, `[Join link]`, `[Your name]`.
 Anything else is free-form, for example `[Date]`, `[Room]`, `[Speaker name]`.
 
+## Turning a finished printable into a template
+
+A flyer, poster, sign or slide deck that exists as a finished file is worth more as a template: another group opens
+it in its own colours, fonts, logo and name. You make the template, on the user's computer; the site does not
+convert files. The rules a template follows are in the template contract: `commons contract` prints it, and it is
+at __DEFAULT_URL__/cli/TEMPLATE.md.
+
+**From a PDF** (export slides and documents as PDF first):
+
+1. `commons convert flyer.pdf --out my-flyer` writes `my-flyer/template.html` and `my-flyer/item.json`. It runs
+   locally without any AI: the artwork and photos stay as they are, the text becomes editable text at the same
+   place, and the main colours become the brand colours. It needs poppler; if that is missing, the command prints
+   the install line (macOS: `brew install poppler`). Read the notes it prints.
+2. Open `template.html` and decide about every picture; the converter cannot know whose logo is whose. Each one is
+   an `<image data-photo="photo_N">` in the artwork:
+   - the group's own logo: replace `data-photo="photo_N"` with `data-logo="wide"` or `data-logo="square"` (add
+     `data-logo-on="dark"` on a dark surface). `--logos` does this for pictures that look like logos; check each;
+   - the logo of an event or a series: `data-logo="wide" data-logo-slot="event"`;
+   - logos of partners and sponsors: leave them as photo slots, they must not change with the kit;
+   - photos: leave them as photo slots.
+3. Where a text is the group's name, wrap exactly the name: `<span data-brand="group_name">Name as printed</span>`.
+   Do the same for the website, email address and Instagram handle (`data-brand="website"`, `"email"`, `"instagram"`).
+4. Compare the result with the original in both looks: as it is, and as another group would see it. No logo and
+   no name of the user's group may remain under another kit. The contract ends with the checklist, and says how to
+   check this before the material is on the site.
+5. Fill in `title` and `summary` in `item.json`, check privacy (below), ask the user, then `commons add my-flyer`.
+
+**From a picture (PNG, JPG, WebP), or when no PDF exists:** a picture has no text layer, so `commons convert` does
+not convert it. Write `template.html` by hand from the contract, with the picture as the reference: same page size,
+layout, colours and fonts; real photos as `data-photo` slots. Put it in a folder with an `item.json`
+(`"kind": "template"`, `"template": { "path": "template.html", "format": "A4 portrait" }`), then `commons add <folder>`.
+
+**Without a terminal** (the Claude app with the Groups Commons connector): write the template HTML yourself,
+following __DEFAULT_URL__/cli/TEMPLATE.md, and share it with the `share_material` tool (`kind: "template"`,
+`template_html`: the complete file). Pictures have to be inside the file, as inline SVG or `data:` URIs.
+
 ## Before anything is shared: privacy
 
 The site is public. Check the material and remove or replace with placeholders:
@@ -108,6 +145,8 @@ commons list [--category C] [--kind K] [--sort hot|best|top|new] [--json]
 commons show <slug> [--json]
 commons get <slug> [dir]
 commons add <folder>... | <file> --title T --category C | --link URL --title T | --text file.md --title T
+commons convert <file.pdf> [--out folder] [--pages N] [--title T] [--logos]   # PDF -> template folder, on this computer
+commons contract           # the template contract
 commons vote <slug> up|down|clear
 commons pending            # your materials that wait for review
 commons rm <slug> --yes    # remove one of your own materials

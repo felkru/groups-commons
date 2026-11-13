@@ -21,7 +21,7 @@ One material = one folder `seed/<slug>/` containing `item.json` plus any files i
   "files": [{ "path": "deck.pdf", "label": "PDF, 8 slides" }],
   "preview": "preview.jpg",                 // optional for any kind; jpg/png, max 1400px long edge
 
-  // kind = template: a customizable HTML printable (see TEMPLATE_CONTRACT.md)
+  // kind = template: a customizable HTML printable (see skill/TEMPLATE.md)
   "template": { "path": "template.html", "format": "A4 portrait" },
 
   // kind = text: copy-paste message templates; one entry per language/channel variant

@@ -71,7 +71,7 @@ const ARROW_UP = '<svg viewBox="0 0 20 20"><path d="M10 4l7 9H3z"/></svg>';
 const ARROW_DOWN = '<svg viewBox="0 0 20 20"><path d="M10 16l7-9H3z"/></svg>';
 export function voteBox(item, wide = false) {
   const my = state.votes[item.slug] || 0;
-  if (item.status && item.status !== 'published') return `<div class="vote ${wide ? 'wide' : ''}" title="Voting opens once this material is published"><span class="score">·</span></div>`;
+  if (item.status && item.status !== 'published') return `<div class="vote ${wide ? 'wide' : ''}" title="Voting opens once this material is published" aria-hidden="true"></div>`;
   return `<div class="vote ${wide ? 'wide' : ''} ${my === 1 ? 'up' : my === -1 ? 'down' : ''}" data-votebox="${esc(item.slug)}" data-base="${item.score - my}">
     <button type="button" class="u" data-vote="1" title="Upvote: this is useful" aria-label="Upvote">${ARROW_UP}</button>
     <span class="score" title="${item.up || 0} up, ${item.down || 0} down">${item.score}</span>

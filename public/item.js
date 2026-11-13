@@ -14,6 +14,10 @@ const extOf = (p) => (/\.([a-z0-9]+)$/i.exec(p)?.[1] || '').toLowerCase();
 const shorten = (text, max) => {
   const t = String(text || '').trim();
   if (t.length <= max) return t;
+  // A title usually names the thing before a colon or bracket ("Tri-fold flyer: what we offer, …"): that part reads
+  // better than a sentence cut in the middle.
+  const head = t.split(/\s*[:(–—]\s*/)[0];
+  if (head.length >= 8 && head.length <= max) return head;
   const cut = t.slice(0, max + 1);
   return (cut.lastIndexOf(' ') > max * 0.5 ? cut.slice(0, cut.lastIndexOf(' ')) : t.slice(0, max)).replace(/[\s,:;.–-]+$/, '');
 };

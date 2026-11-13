@@ -187,9 +187,14 @@ export function dress(doc, brand, edits = {}, editable = false, photos = {}) {
     const slot = doc.querySelector(`[data-logo-slot="${CSS.escape(el.getAttribute('data-logo-for'))}"]`);
     show(el, !(slot && (slot.getAttribute(photoAttr(slot)) || '')));
   }
-  for (const img of doc.querySelectorAll('img[data-qr]')) {
+  // QR codes: <img data-qr> in HTML templates, <image data-qr> inside converted artwork.
+  for (const img of doc.querySelectorAll('img[data-qr], image[data-qr]')) {
+    const attr = photoAttr(img);
     const src = qrDataUri(brand[img.getAttribute('data-qr')]) || QR_PLACEHOLDER;
-    if (img.getAttribute('src') !== src) img.setAttribute('src', src);
+    if (img.getAttribute(attr) !== src) {
+      img.removeAttribute('xlink:href');
+      img.setAttribute(attr, src);
+    }
   }
   if (editable) {
     // Links would navigate the frame away from the template; park them while editing.
@@ -302,7 +307,7 @@ async function serialize(doc, mode) {
   if (mode === 'share') {
     copy.removeAttribute('style');
     copy.querySelectorAll('link[data-commons-fonts]').forEach((e) => e.remove());
-    for (const img of copy.querySelectorAll('img[data-qr]')) img.setAttribute('src', QR_PLACEHOLDER);
+    for (const img of copy.querySelectorAll('img[data-qr], image[data-qr]')) img.setAttribute(img.localName === 'image' ? 'href' : 'src', QR_PLACEHOLDER);
     for (const img of copy.querySelectorAll('img[data-commons-src], image[data-commons-src]')) img.setAttribute(img.localName === 'image' ? 'href' : 'src', img.getAttribute('data-commons-src'));
     for (const img of copy.querySelectorAll('[data-commons-box]')) img.getAttribute('data-commons-box').split(',').forEach((v, i) => (v === '' ? img.removeAttribute(['x', 'y', 'width', 'height'][i]) : img.setAttribute(['x', 'y', 'width', 'height'][i], v)));
   } else {

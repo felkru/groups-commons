@@ -136,6 +136,14 @@ Example: ${origin}/m/poster-series-template#brand=%7B%22group_name%22%3A%22AI%20
 ## Text templates
 Fill the [Placeholders] from what you know about the organizer's group and return the finished text.
 
+## Making a template from a finished printable
+The site does not convert files; the organizer's assistant does it. What makes an HTML file a template that
+re-brands itself is written down in the template contract: ${origin}/cli/TEMPLATE.md
+- A PDF, with a terminal: "commons convert flyer.pdf --out my-flyer" converts it on the organizer's computer
+  (artwork kept, text editable). Then mark the group's logo and name as the contract says, and "commons add my-flyer".
+- A picture, or no terminal: write the HTML by hand from the contract, with the printable as the reference, and
+  share it with "commons add <folder>" or the MCP tool share_material (kind "template", template_html).
+
 ## Sharing back
 Only after the organizer explicitly agreed: the MCP tool share_material, or the command line tool
 (${origin}/cli/commons.mjs, "commons add <folder>"). Remove names of private people, phone numbers, private

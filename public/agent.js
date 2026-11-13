@@ -303,7 +303,7 @@ export function contributePrompt(origin = location.origin, group = hasOwnGroup()
     `I want to share my group's organizing materials on the Groups Commons (${origin}), a library where AI safety university groups reuse each other's flyers, posters, slides, messages and checklists. We are ${group}. Everything is in this folder: [path to your folder]`,
     [
       '1. Go through the folder and tell me what is in it. Leave out drafts, duplicates, and anything that is about one person or not finished.',
-      '2. For every finished printable (flyer, poster, sign, slide, social media post, as PDF or image) run `commons convert <file>`. It turns the file into a template that keeps our design and that other groups can re-brand with their own colours, fonts, logo and texts.',
+      '2. Turn every finished printable (flyer, poster, sign, slide, social media post) into a template that other groups can re-brand with their own colours, fonts, logo and texts. For a PDF run `commons convert <file.pdf>`: it converts the file on this computer, keeps our design and makes the text editable. Then open the `template.html` it wrote and mark our logo and our group name the way `commons contract` describes; logos of partners stay as they are. For a picture that has no PDF, write the template by hand from that contract, with the picture as the reference. Compare every template with its original.',
       '3. For every message, email, checklist, runsheet or guide, make a folder with an `item.json` (kind "text"; kind "kit" for checklists of things to buy or bring). Keep our original wording. Write the parts that change from event to event as [Placeholders]: [Date], [Room], [Speaker], and [Group name], [University], [Website], [Join link] for our own details. `commons get <slug>` on a similar material shows the format.',
       '4. Take out everything private, in texts and in designs: names of people, phone numbers, personal email addresses, private links (WhatsApp or Signal invites, Google Docs, sign-up forms, video calls), and amounts from invoices, grants or budgets. Our group name and public website can stay.',
       '5. Give every material a short concrete title, a category (`commons categories` lists them), two to six tags, and one or two sentences that say what it is and when it worked well for us.',
@@ -330,7 +330,7 @@ export async function contributePage(root) {
           <p class="small muted">Start the agent in that folder (type <code>claude</code> or <code>codex</code>) and paste this. Put the folder’s path in the first paragraph.</p>
           ${cmd(contributePrompt())}
           <h2 style="margin-top:22px">4. Check the list, then say yes</h2>
-          <p class="small muted">The agent shows you what it would share and what it took out. Nothing is uploaded before your OK. Look at the templates it made: designs are rebuilt by an AI, so a logo can end up in the wrong place or a line break can differ. Ask it to fix what is off, or leave that one out.</p>
+          <p class="small muted">The agent shows you what it would share and what it took out. Nothing is uploaded before your OK. Look at the templates it made, in your own look and in another group’s: a PDF keeps its design, but the agent decides which pictures are your logo, and a template rebuilt from a picture can differ from the original. Ask it to fix what is off, or leave that one out.</p>
         </section>
         <section class="panel">
           <h2>What happens next</h2>
@@ -345,7 +345,7 @@ export async function contributePage(root) {
       <aside>
         <section class="panel pink">
           <h3 style="margin-top:0">Without an agent</h3>
-          <p class="small">The web form takes one material at a time: a file, a link or a text. On the same page, the converter turns a single flyer or poster into a re-brandable template.</p>
+          <p class="small">The web form takes one material at a time: a file, a link or a text. Turning a flyer or poster into a re-brandable template is done by your assistant or the command line tool; the same page says how.</p>
           <p style="margin:0"><a class="btn" href="/add">Open the web form</a></p>
         </section>
         <section class="panel">

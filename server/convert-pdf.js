@@ -1,4 +1,4 @@
-// PDF printable -> re-brandable HTML template, without redrawing anything (see docs/TEMPLATE_CONTRACT.md).
+// PDF printable -> re-brandable HTML template, without redrawing anything (see skill/TEMPLATE.md).
 //
 // How it works (deterministic, no LLM, only poppler-utils):
 //   1. `pdftocairo -svg` turns each page into an SVG that keeps every vector shape, clip, mask and image as it is.
@@ -19,8 +19,12 @@
 //      transparency (pixels unchanged), because Chrome prints SVG masks badly. Photos get `data-photo="photo_N"`
 //      on the SVG <image> element.
 //
-// Verified with poppler 26 / cairo 1.18 (tools/convert-test.mjs). The production image (Debian 12) has cairo 1.16,
-// which writes the SVG in an older form: the parser accepts it, but that form was only tested as an imitation.
+// Where it runs: on the organizer's computer, not on the server. The site serves this file as /cli/convert-pdf.mjs and
+// "commons convert" (cli/commons.mjs) downloads and imports it. So it has to stay ONE file that needs only Node's own
+// modules and the poppler tools on the PATH; sharp is used when it happens to be installed.
+//
+// Verified with poppler 26 / cairo 1.18 (tools/convert-test.mjs). Older systems (Debian 12) have cairo 1.16, which
+// writes the SVG in an older form: the parser accepts it, but that form was only tested as an imitation.
 //
 // Output details the editor has to know about are listed at the end of this file (EDITOR NOTES).
 
@@ -1118,7 +1122,7 @@ function alignElements(elements, W) {
 // main
 
 /**
- * Convert a finished PDF printable into a template (docs/TEMPLATE_CONTRACT.md) without redrawing it.
+ * Convert a finished PDF printable into a template (skill/TEMPLATE.md) without redrawing it.
  *
  * @param {Buffer|Uint8Array} buffer  the PDF
  * @param {object} [options]
@@ -1460,7 +1464,7 @@ export async function pdfToTemplate(buffer, options = {}) {
       if (rec.kind === 'qr-like') warnings.push(opt.qr === 'placeholder' ? 'An image that looks like a QR code was replaced by the contract placeholder (data-qr="join_url").' : 'An image looks like a QR code. It was kept as artwork; the contract forbids real QR codes in templates (convert with qr: "placeholder" to swap it).');
     }
     const graphics = [...shared.values()].filter((r) => r.kind === 'graphic' && !r.logo);
-    if (graphics.length) warnings.push(`${graphics.length} image(s) with transparency (${graphics.map((r) => r.slot).join(', ')}) are probably logos or cut-outs. They are replaceable photo slots; if one is the group's logo, convert with markLogos to give it data-logo.`);
+    if (graphics.length) warnings.push(`${graphics.length} image(s) with transparency (${graphics.map((r) => r.slot).join(', ')}) are probably logos or cut-outs. They are replaceable photo slots; if one is the group's logo, give it data-logo in place of data-photo (the markLogos option, "commons convert --logos", does that for small ones).`);
     if (masksKept) warnings.push(`${masksKept} masked image(s) could not be merged with their mask and keep an SVG mask. Chrome prints SVG masks as flattened layers that some PDF viewers (macOS Preview) show with a black background: check the printed PDF.`);
 
     // ---- colours: rank what artwork and text use, choose the brand variables

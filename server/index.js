@@ -175,7 +175,7 @@ api.get('/health', wrap(health(store)));
 
 api.get('/meta', (req, res) => {
   const a = account(req);
-  res.json({ categories: CATEGORIES, mcp: `${origin(req)}/mcp`, semantic_search: ai.enabled, conversion: ai.enabled, logos: ai.enabled, admin: isAdmin(req), account: a ? { username: a.u, group: a.g, role: a.r } : null, limits: { file_mb: MAX_FILE_BYTES / 1048576, types: Object.keys(MIME) } });
+  res.json({ categories: CATEGORIES, mcp: `${origin(req)}/mcp`, semantic_search: ai.enabled, logos: ai.enabled, admin: isAdmin(req), account: a ? { username: a.u, group: a.g, role: a.r } : null, limits: { file_mb: MAX_FILE_BYTES / 1048576, types: Object.keys(MIME) } });
 });
 
 api.get(
@@ -494,52 +494,12 @@ api.post(
   }),
 );
 
-// The conversion agent: a finished printable (PDF or image) in, a contract-conforming template out.
+// Takes scripts, frames, forms and inline event handlers out of a page that came from a browser.
 const stripActive = (html) =>
   html
     .replace(/<script[\s\S]*?<\/script\s*>/gi, '')
     .replace(/<(iframe|object|embed|form)[\s\S]*?<\/\1\s*>/gi, '')
     .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-api.post(
-  '/convert',
-  limit('convert', 6),
-  express.raw({ limit: '26mb', type: () => true }),
-  wrap(async (req, res) => {
-    const type = (req.get('content-type') || '').split(';')[0].trim();
-    if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(type)) throw new Invalid('Send a PDF, PNG, JPEG or WebP file.');
-    if (!Buffer.isBuffer(req.body) || req.body.length < 100) throw new Invalid('Empty upload.');
-    const started = Date.now();
-    const seconds = () => Math.round((Date.now() - started) / 1000);
-    const rebuild = req.query.mode === 'rebuild';
-    // A PDF is converted without any AI: the artwork stays exactly as it is and the text becomes live text.
-    if (type === 'application/pdf' && !rebuild) {
-      const { pdfToTemplate } = await import('./convert-pdf.js');
-      let out;
-      try {
-        out = await pdfToTemplate(req.body, { maxPages: Math.min(30, parseInt(req.query.pages, 10) || 12), qr: 'placeholder', title: String(req.query.title || '').slice(0, 90) || undefined });
-      } catch (e) {
-        throw new Invalid(`This PDF could not be converted: ${String(e.message).slice(0, 200)}`);
-      }
-      checkActiveContent('template.html', Buffer.from(out.html));
-      return res.json({ html: out.html, files: [], method: 'kept-original', pages: out.pages, report: out.report, seconds: seconds() });
-    }
-    if (!ai.enabled) throw fail(503, 'Converting images needs the AI services, which are switched off on this server.');
-    if (!isAdmin(req) && !(await store.takeQuota('convert', 150))) throw fail(429, 'The conversion agent has reached its daily limit. Try again tomorrow.');
-    // An image keeps its picture: an image model removes the baked-in text, and the text is set again as live text.
-    const imageConverter = rebuild || type === 'application/pdf' ? null : await import('./convert-image.js').then((m) => m.imageToTemplate).catch(() => null);
-    if (imageConverter) {
-      const out = await imageConverter(req.body, type, { hint: String(req.query.hint || '') });
-      checkActiveContent('template.html', Buffer.from(out.html));
-      const files = (out.files || []).map((f) => ({ path: f.path, type: MIME[ext(f.path)] || 'application/octet-stream', data: f.buffer.toString('base64') }));
-      return res.json({ html: out.html, files, method: 'kept-original', pages: 1, report: out.report, seconds: seconds() });
-    }
-    // Last resort, or when asked for: an AI redraws the design from scratch. Simpler, and photos are lost.
-    const out = await ai.convertPrintable(req.body, type, String(req.query.hint || ''));
-    const html = stripActive(out.html);
-    checkActiveContent('template.html', Buffer.from(html));
-    res.json({ html, files: [], method: 'rebuilt', model: out.model, seconds: seconds() });
-  }),
-);
 
 // ---- accounts ----
 const needAccount = (req) => {
@@ -945,6 +905,17 @@ app.get('/cli/commons.mjs', (req, res) => {
 app.get('/cli/SKILL.md', (req, res) => {
   res.type('text/markdown; charset=utf-8').set('Cache-Control', 'no-cache');
   res.send(fs.readFileSync(path.join(ROOT, 'skill', 'SKILL.md'), 'utf8').replaceAll('__DEFAULT_URL__', origin(req)));
+});
+// The template contract an assistant follows to write or check a template itself.
+app.get('/cli/TEMPLATE.md', (req, res) => {
+  res.type('text/markdown; charset=utf-8').set('Cache-Control', 'no-cache');
+  res.send(fs.readFileSync(path.join(ROOT, 'skill', 'TEMPLATE.md'), 'utf8').replaceAll('__DEFAULT_URL__', origin(req)));
+});
+// The PDF converter is a download, not a service: "commons convert" fetches this file once and runs it on the
+// organizer's computer (it needs poppler there). Nothing is converted on the server.
+app.get('/cli/convert-pdf.mjs', (req, res) => {
+  res.type('text/javascript; charset=utf-8').set('Cache-Control', 'no-cache');
+  res.send(fs.readFileSync(path.join(ROOT, 'server', 'convert-pdf.js'), 'utf8'));
 });
 // Hosted group websites, at /s/<name>/. They are other people's pages on our address, so every response is
 // sandboxed without "allow-same-origin": scripts on a hosted page run in an origin of their own and can reach

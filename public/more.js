@@ -230,7 +230,7 @@ export async function privacyPage(root) {
         <ul>
           <li><strong>Google Cloud</strong> hosts the site, its database and the uploaded files, in the United States (Iowa).</li>
           <li><strong>Google Fonts.</strong> The fonts of the site and of the templates are loaded from Google’s font servers, so your browser connects to them and they see your IP address.</li>
-          <li><strong>Google’s AI models (Vertex AI).</strong> What you type into the search box, a printable you send to the converter and the group name you enter for logo suggestions are sent to these models to be processed.</li>
+          <li><strong>Google’s AI models (Vertex AI).</strong> What you type into the search box and the group name you enter for logo suggestions are sent to these models to be processed.</li>
           <li><strong>Group websites</strong> under <code>/s/…</code> are made by the groups themselves and may load content from elsewhere.</li>
         </ul>
       </div>

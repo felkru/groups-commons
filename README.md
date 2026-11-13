@@ -8,7 +8,7 @@ The live instance is internal for now; ask the maintainers for the link.
 ## What is in here
 - `server/`: Express API. `index.js` (routes), `store.js` (storage: local files, or Firestore + Cloud Storage), `store-pg.js`
   (storage: PostgreSQL + Cloud Storage), `files.js` (file bytes: a folder or a bucket), `rank.js` (hot / best / top),
-  `ingest.js` (validation), `ai.js` (Vertex AI: embeddings for search, Gemini for printable -> template), `preview.js` (thumbnails).
+  `ingest.js` (validation), `ai.js` (Vertex AI: embeddings for search, Gemini for logo suggestions), `preview.js` (thumbnails).
 - `server/accounts.js`: accounts (user name + password, signed session tokens). Hosted group websites (`/s/<name>`), the
   leaderboard, page previews for PDFs and Office files (LibreOffice) and AI logo marks live in `index.js`, `preview.js` and `ai.js`.
 - `public/`: the website, plain ES modules, no build step. `template.js` is the in-browser template editor; `more.js` has the
@@ -18,8 +18,11 @@ The live instance is internal for now; ask the maintainers for the link.
   `server/setup.sh.tmpl` (macOS, Linux, WSL) and `server/setup.ps1.tmpl` (Windows): `/setup.sh?agent=claude-code&install=1&cli=1&skill=1`.
   The values a script address may carry are checked in `public/setup-fields.js`, shared by both sides. `/llms.txt` describes
   the site to assistants that can open web pages.
-- `cli/commons.mjs`: one-file CLI (`commons search | get | add | ...`). `skill/SKILL.md`: Claude Code skill that uses it.
-- `docs/TEMPLATE_CONTRACT.md`: what makes an HTML file a re-brandable template. `docs/SEED_FORMAT.md`: the material folder format.
+- `cli/commons.mjs`: one-file CLI (`commons search | get | add | convert | ...`). `skill/SKILL.md`: Claude Code skill that uses it.
+- `skill/TEMPLATE.md`: the template contract, what makes an HTML file a re-brandable template (served at `/cli/TEMPLATE.md`,
+  printed by `commons contract`). `docs/SEED_FORMAT.md`: the material folder format.
+- `server/convert-pdf.js`: PDF -> template converter (poppler, no AI). The server does not run it: it is served as a
+  download at `/cli/convert-pdf.mjs` and runs on the organizer's computer, see "Printables become templates" below.
 - `seed/`: the materials themselves. They are not part of this repository (they include a group's internal originals);
   the format is described in `docs/SEED_FORMAT.md`.
 - `server/ops.js`, `server/log.js`: health check, start and shutdown, response headers, structured logs.
@@ -30,7 +33,7 @@ The live instance is internal for now; ask the maintainers for the link.
 ## Run locally
 ```
 npm install
-STORE=local PORT=8787 ADMIN_TOKEN=dev node server/index.js          # add VERTEX=1 for semantic search and conversion (uses gcloud ADC)
+STORE=local PORT=8787 ADMIN_TOKEN=dev node server/index.js          # add VERTEX=1 for semantic search and logo suggestions (uses gcloud ADC)
 COMMONS_URL=http://localhost:8787 COMMONS_TOKEN=dev node cli/commons.mjs add seed/*/ --stats seed/_stats.json
 npm test                                                            # local store in a temporary folder, no cloud access
 npm run test:pg                                                     # the same tests on the PostgreSQL store (PGlite, nothing to install)
@@ -42,6 +45,22 @@ Two things are not in this repository: the materials (`seed/`, a group's own ori
 describes the folder format) and the intro video (`public/assets/intro.mp4`, which shows them; `tools/intro-video/README.md`
 says how it is made). A copy without them starts empty and shows the intro without the video. `.gcloudignore` keeps the
 video in the build upload.
+
+## Printables become templates (on the organizer's computer)
+The site does not convert files. Turning a finished flyer or poster into a re-brandable template is done by the
+organizer's own assistant, locally:
+- **PDF:** `commons convert flyer.pdf --out my-flyer` downloads `server/convert-pdf.js` from the site
+  (`/cli/convert-pdf.mjs`) into `~/.cache/commons/` (`COMMONS_CACHE` changes the folder; the copy is checked against
+  the site once a day by ETag, `--refresh` fetches it again) and runs it there. It needs poppler on the
+  PATH (`brew install poppler`, `sudo apt install poppler-utils`, `winget install oschwartz10612.Poppler`); `sharp` is
+  optional. It writes `template.html` and an `item.json` skeleton. The assistant then marks the group's logo and name
+  (`skill/SKILL.md` says how, `--logos` makes a first guess) and shares the folder with `commons add my-flyer`.
+- **Picture, or no PDF:** `commons convert poster.png` converts nothing and prints how to rebuild the design by hand
+  from the template contract (`commons contract`).
+- **No terminal** (Claude app with the MCP connector): the assistant writes the HTML from `/cli/TEMPLATE.md` and
+  shares it with the `share_material` tool.
+
+`tools/convert-test.mjs` checks the converter against real PDFs (needs poppler, ffmpeg and Chrome).
 
 ## Deploy (Google Cloud, prod project, managed with OpenTofu)
 Infrastructure is defined in `infra/commons.tf`: Cloud Run service `commons-web`, Firestore database
@@ -69,7 +88,7 @@ OpenTofu (`tofu plan -out=tfplan`, read the summary, `tofu apply tfplan`); secre
 | `PG_POOL_MAX`, `PG_SCHEMA` | Optional. Connections per instance (default 5) and a schema to keep the tables in (default `public`). |
 | `ADMIN_TOKEN` | The moderator token. Whoever holds it is a moderator. Secret `commons-admin-token`. |
 | `SESSION_SECRET` | Signs sign-in sessions, preview links of hosted sites and file keys. Secret `commons-session-secret`. Without it the key is derived from `ADMIN_TOKEN` (and a warning is logged). |
-| `VERTEX` | `1` switches on semantic search, the printable converter and logo suggestions. |
+| `VERTEX` | `1` switches on semantic search and logo suggestions. |
 | `PUBLIC_URL` | The site's address, if it should not be taken from the request. |
 | `LOG_FORMAT` | `json` or `text`. Default: `json` on Cloud Run, `text` elsewhere. |
 
@@ -106,7 +125,7 @@ gcloud secrets versions disable <old version number> --secret commons-admin-toke
 | Materials (the whole record: text, counts, embedding) | table `items` | collection `items` | `data/db.json` |
 | Votes | table `votes` | collection `votes` | `data/db.json` |
 | Accounts, hosted sites, other documents | table `docs` (`coll`, `id`) | collections `accounts`, `sites`, ... | `data/db.json` |
-| Daily caps (conversions, logos, search embeddings) | table `quotas` | documents `meta/quota-<day>` | `data/db.json` |
+| Daily caps (logos, search embeddings) | table `quotas` | documents `meta/quota-<day>` | `data/db.json` |
 | The list of stored files (owner, path, size, type, SHA-256, time) | table `files` | (none: the bucket is listed) | (none) |
 | File bytes | bucket, `items/<owner>/<path>` | bucket, `items/<owner>/<path>` | `data/files/` |
 

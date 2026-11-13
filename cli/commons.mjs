@@ -30,6 +30,14 @@ Share
       other options: --group "Your group", --language en, --label "Variant name", --kind template
       Missing title, category and summary are asked for when you run it in a terminal.
 
+Make a template from a finished printable (runs on this computer; nothing is uploaded)
+  commons convert <flyer.pdf> [--out <folder>] [--pages N] [--title T] [--logos]
+                                          a folder with template.html and item.json; the design is kept, text becomes
+                                          editable. Needs poppler (macOS: brew install poppler). --logos marks pictures
+                                          that look like logos as the group's logo; check them. A picture (png, jpg,
+                                          webp) is not converted: the command says how to rebuild it by hand.
+  commons contract                        print the template contract: what makes an HTML file a re-brandable template
+
 Moderate (needs the admin token)
   commons pending [--json]                materials waiting for review
   commons approve <slug>
@@ -41,15 +49,15 @@ Setup
   commons login --user <user name> [--password P]              sign in with an account (needed to host a website)
   commons site publish <folder> --name <name>                  host a built website at /s/<name>/ (after review)
   commons site list | commons site rm <name>
-  commons convert <flyer.pdf|poster.jpg> [--out <folder>]           turn a finished printable into a template, original design kept
   commons skill install [--dir D]         install the agent skill into ~/.claude/skills/commons
   commons categories
 
-Environment: COMMONS_URL, COMMONS_TOKEN, COMMONS_CONFIG (path of the config file).
+Environment: COMMONS_URL, COMMONS_TOKEN, COMMONS_CONFIG (path of the config file), COMMONS_CACHE (folder for the
+downloaded converter, default ~/.cache/commons).
 Site: __DEFAULT_URL__`;
 
 // ---------- small helpers ----------
-const BOOL = new Set(['json', 'help', 'yes', 'force']);
+const BOOL = new Set(['json', 'help', 'yes', 'force', 'logos', 'refresh']);
 function parseArgs(argv) {
   const pos = [];
   const opt = {};
@@ -556,39 +564,150 @@ async function cmdSite({ pos, opt }) {
 }
 
 // ---------- turning a finished printable into a template ----------
+// The conversion runs on this computer. The converter is one file of the site (/cli/convert-pdf.mjs: Node built-ins
+// and the poppler tools, no AI). It is kept in the cache folder and checked against the site at most once a day.
+const cacheDir = () => process.env.COMMONS_CACHE || path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'commons');
+const POPPLER_TOOLS = ['pdfinfo', 'pdftotext', 'pdftohtml', 'pdffonts', 'pdftocairo', 'pdftoppm'];
+const POPPLER_HELP = `"commons convert" needs the poppler tools (${POPPLER_TOOLS.join(', ')}) and they are not installed. Install them, then run this again:
+  macOS:           brew install poppler
+  Debian, Ubuntu:  sudo apt install poppler-utils
+  Windows:         winget install oschwartz10612.Poppler   (or: choco install poppler)`;
+const IMAGE_HELP = (file) => `${path.basename(file)} is a picture: it has no text layer, so it cannot be converted automatically.
+Rebuild it by hand as a template, with the picture as the reference:
+  1. Read the template contract: commons contract
+  2. Write <folder>/template.html that follows it: the same page size, layout, colours and fonts as the picture, the
+     group's name as data-brand="group_name", its logo as a data-logo slot, every other text with data-edit, photos as
+     data-photo slots (cut them out of the picture into <folder>/photos/, or ask for the original photos).
+  3. Add <folder>/item.json: { "title", "category", "kind": "template", "summary", "group", "source": "adapted",
+     "template": { "path": "template.html", "format": "A4 portrait" } }
+  4. Open template.html next to the picture and compare, then share it: commons add <folder>
+If the design also exists as a PDF (an export from Canva, Figma, InDesign, PowerPoint), convert that instead: commons convert <file.pdf>`;
+
+async function missingPoppler() {
+  const { execFile } = await import('node:child_process');
+  const missing = await Promise.all(POPPLER_TOOLS.map((tool) => new Promise((resolve) => execFile(tool, ['-v'], { timeout: 20000 }, (err) => resolve(err?.code === 'ENOENT' ? tool : null)))));
+  return missing.filter(Boolean);
+}
+
+// Returns the converter function, from the cached file. Downloads the file when it is missing, came from another
+// site, was last checked more than a day ago or --refresh is given; a copy that is already there keeps working offline.
+async function loadConverter(refresh) {
+  const dir = cacheDir();
+  const file = path.join(dir, 'convert-pdf.mjs');
+  const stateFile = path.join(dir, 'convert-pdf.json');
+  const state = readJson(stateFile) || {};
+  const have = fs.existsSync(file) && state.url === ctx.url;
+  const checked = Date.parse(state.checked_at || '') || 0;
+  if (!have || refresh || Date.now() - checked > 86400000) {
+    const address = `${ctx.url}/cli/convert-pdf.mjs`;
+    try {
+      const headers = { 'User-Agent': `commons-cli/${VERSION}` };
+      // "max-age=0" is said out loud: fetch would otherwise add "no-cache" to a request with If-None-Match, and the
+      // server then sends the whole file again instead of "304 Not Modified".
+      if (have && state.etag && !refresh) Object.assign(headers, { 'If-None-Match': state.etag, 'Cache-Control': 'max-age=0' });
+      const res = await fetch(address, { headers, signal: AbortSignal.timeout(60000) });
+      if (res.status !== 304) {
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const code = await res.text();
+        if (!/export (default )?(async )?function pdfToTemplate\b/.test(code)) throw new Error('the site did not answer with the converter; it may run an older version');
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(`${file}.part`, code);
+        fs.renameSync(`${file}.part`, file);
+        state.etag = res.headers.get('etag') || '';
+        state.fetched_at = new Date().toISOString();
+        note(dim(`Downloaded the converter to ${file}`));
+      }
+      Object.assign(state, { url: ctx.url, checked_at: new Date().toISOString() });
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(stateFile, JSON.stringify(state, null, 2) + '\n');
+    } catch (e) {
+      const why = e.cause?.code || e.message;
+      if (!have) throw new Error(`Cannot download the converter from ${address} (${why}). Set the site's address with "commons login --url <address>" or COMMONS_URL.`);
+      note(dim(`Could not check for a newer converter (${why}); using the copy in ${dir}.`));
+    }
+  }
+  const { pathToFileURL } = await import('node:url');
+  const mod = await import(pathToFileURL(file).href);
+  if (typeof mod.pdfToTemplate !== 'function') throw new Error(`${file} is not the converter. Delete it and run this again.`);
+  return mod.pdfToTemplate;
+}
+
 async function cmdConvert({ pos, opt }) {
+  const usage = 'Usage: commons convert <flyer.pdf> [--out <folder>] [--pages N] [--title T] [--logos]\nThe PDF is converted on this computer (no AI, nothing is uploaded): the artwork stays as it is and the text becomes editable.';
   const file = pos[0];
-  if (!file || !fs.existsSync(file)) throw new Error('Usage: commons convert <flyer.pdf | poster.jpg | poster.png> [--out <folder>] [--pages N]\nA PDF keeps its design exactly (no AI involved). An image keeps its picture; an image model removes the baked-in text first.');
-  const types = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
-  const type = types[path.extname(file).slice(1).toLowerCase()];
-  if (!type) throw new Error('Give a PDF, PNG, JPG or WebP file. Export slides and documents as PDF first.');
+  if (!file) throw new Error(usage);
+  if (!fs.existsSync(file)) throw new Error(`${file} not found.\n${usage}`);
+  const kind = path.extname(file).slice(1).toLowerCase();
+  if (['png', 'jpg', 'jpeg', 'webp'].includes(kind)) {
+    // A picture needs judgement (what is text, what is a photo, which font): that is work for the assistant.
+    out(IMAGE_HELP(file));
+    process.exitCode = 2;
+    return;
+  }
+  if (kind !== 'pdf') throw new Error('Give a PDF. Export slides and documents as PDF first (PowerPoint, Keynote, Canva, Figma: "Export as PDF").');
+  const missing = await missingPoppler();
+  if (missing.length) throw new Error(POPPLER_HELP);
+  const pdfToTemplate = await loadConverter(opt.refresh);
   const base = path.basename(file, path.extname(file));
   const dir = path.resolve(opt.out || slugify(base) + '-template');
-  note(`Converting ${path.basename(file)} ...`);
-  const headers = { 'Content-Type': type, 'X-Client-Id': ctx.clientId };
-  if (ctx.token) headers['X-Admin-Token'] = ctx.token;
-  if (ctx.session) headers['X-Session'] = ctx.session;
-  const res = await fetch(`${ctx.url}/api/convert${qs({ pages: opt.pages, mode: opt.rebuild ? 'rebuild' : undefined, title: opt.title })}`, { method: 'POST', headers, body: fs.readFileSync(file), signal: AbortSignal.timeout(600000) });
-  const r = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(r.error || `${res.status} ${res.statusText}`);
+  note(`Converting ${path.basename(file)} on this computer ...`);
+  let r;
+  try {
+    r = await pdfToTemplate(fs.readFileSync(file), { maxPages: Math.min(30, parseInt(opt.pages, 10) || 12), qr: 'placeholder', title: String(opt.title || '').slice(0, 90) || undefined, markLogos: !!opt.logos });
+  } catch (e) {
+    if (/is not installed/.test(e.message)) throw new Error(POPPLER_HELP);
+    throw new Error(`This PDF could not be converted: ${String(e.message).slice(0, 300)}`);
+  }
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'template.html'), r.html);
   for (const f of r.files || []) {
     fs.mkdirSync(path.dirname(path.join(dir, f.path)), { recursive: true });
-    fs.writeFileSync(path.join(dir, f.path), Buffer.from(f.data, 'base64'));
+    fs.writeFileSync(path.join(dir, f.path), f.buffer);
   }
   const format = /commons:format" content="([^"]{1,60})"/.exec(r.html)?.[1];
   const itemFile = path.join(dir, 'item.json');
   if (!fs.existsSync(itemFile)) {
     const title = opt.title || base.replace(/[_-]+/g, ' ');
-    fs.writeFileSync(itemFile, JSON.stringify({ slug: slugify(title), title, category: opt.category || 'print', kind: 'template', summary: 'TODO: one or two sentences on what this is and when it worked well.', group: ctx.cfg.group || 'TODO: your group', source: 'adapted', provenance: `Converted from our own ${path.extname(file).slice(1).toUpperCase()}; the original design is kept.`, template: { path: 'template.html', format } }, null, 2) + '\n');
+    fs.writeFileSync(itemFile, JSON.stringify({ slug: slugify(title), title, category: opt.category || 'print', kind: 'template', summary: 'TODO: one or two sentences on what this is and when it worked well.', group: ctx.cfg.group || 'TODO: your group', source: 'adapted', provenance: 'Converted from our own PDF; the original design is kept.', template: { path: 'template.html', format } }, null, 2) + '\n');
   }
-  if (opt.json) return out(JSON.stringify({ dir, method: r.method, pages: r.pages, report: r.report }, null, 2));
   const rep = r.report || {};
-  out(`${r.method === 'rebuilt' ? 'Rebuilt by AI (simplified)' : 'Converted, original design kept'}: ${dir}`);
-  if (r.pages) out(`  pages: ${r.pages}${rep.editable != null ? `, editable texts: ${rep.editable}` : ''}${rep.photos != null ? `, photos: ${rep.photos}` : ''}`);
+  const slots = (prefix) => (rep.images || []).filter((i) => String(i.slot || '').startsWith(prefix)).length;
+  const logos = slots('data-logo');
+  if (opt.json) return out(JSON.stringify({ dir, method: 'kept-original', pages: r.pages, logos_marked: logos, report: rep }, null, 2));
+  const near = path.relative(process.cwd(), dir) || '.';
+  const shown = near.startsWith('..') ? dir : near; // a folder elsewhere is named in full
+  const texts = rep.text?.elements ?? 0;
+  const photos = slots('data-photo');
+  out(`Converted, original design kept: ${dir}`);
+  out(`  pages: ${r.pages}, editable texts: ${texts}, photo slots: ${photos}, logo slots: ${logos}, QR placeholders: ${slots('data-qr')}, template.html: ${size(Buffer.byteLength(r.html))}`);
   for (const w of rep.warnings || []) out(`  note: ${w}`);
-  out(`Next: open ${path.join(dir, 'template.html')} in a browser and compare it with the original, fill in title and summary in item.json,\nremove private names and links, then share it with: commons add ${path.relative(process.cwd(), dir) || '.'}`);
+  // Large pictures with a soft mask are only merged by sharp, which the converter finds when it is installed next to it.
+  if ((rep.warnings || []).some((w) => /could not be merged with their mask/.test(w)) && !fs.existsSync(path.join(cacheDir(), 'node_modules', 'sharp'))) out(`  To merge them, install sharp next to the converter and convert again: npm install --prefix "${cacheDir()}" sharp`);
+  if (!texts) out(`This PDF has no text that could be made editable (a scan, or an export that turned the page into a picture), so the template is
+only that picture. Export the design again with live text, or rebuild it by hand from the contract: commons contract`);
+  out(`Next:
+  1. Open ${path.join(shown, 'template.html')} in a browser and compare it with the original.
+  2. Check the logos yourself; the converter cannot know whose they are. ${logos ? `--logos marked ${logos} picture${logos === 1 ? '' : 's'} as the group's logo (data-logo): make sure each one is.` : photos ? 'Every picture is a photo slot (data-photo) for now.' : 'It found no separate pictures: a logo that is drawn from shapes, or part of a larger picture, is still in the artwork.'}
+     The group's own logo: data-logo="wide" or "square" in place of data-photo. An event's logo: data-logo plus data-logo-slot="event".
+     Logos of partners and sponsors stay photo slots. The group's name in a text: data-brand="group_name". Details: commons contract
+  3. Fill in title and summary in ${path.join(shown, 'item.json')}, and take out private names and links.
+  4. Share it: commons add ${shown}`);
+}
+
+async function cmdContract() {
+  const cached = path.join(cacheDir(), 'TEMPLATE.md');
+  let text;
+  try {
+    text = (await call('GET', '/cli/TEMPLATE.md', { raw: true })).toString('utf8');
+    if (/^\s*<(!doctype|html)/i.test(text)) throw new Error('the site did not answer with the contract; it may run an older version');
+    fs.mkdirSync(path.dirname(cached), { recursive: true });
+    fs.writeFileSync(cached, text);
+  } catch (e) {
+    if (!fs.existsSync(cached)) throw e;
+    note(dim(`Could not reach the site (${e.message}); this is the copy from ${cached}.`));
+    text = fs.readFileSync(cached, 'utf8');
+  }
+  out(text.trimEnd());
 }
 
 async function cmdSkill({ pos, opt }) {
@@ -621,6 +740,7 @@ const COMMANDS = {
   login: cmdLogin,
   site: cmdSite,
   convert: cmdConvert,
+  contract: cmdContract,
   skill: cmdSkill,
   categories: cmdCategories,
 };
