@@ -340,6 +340,9 @@ async function upload(item, files, { stats, autoSlug } = {}) {
 async function addFolder(dir, stats) {
   const item = readJson(path.join(dir, 'item.json'));
   if (!item) throw new Error(fs.existsSync(path.join(dir, 'item.json')) ? 'item.json is not valid JSON' : 'no item.json in this folder (see "commons help" for the quick forms)');
+  // What "commons convert" writes as a reminder must not reach the commons as it is.
+  const open = ['title', 'summary', 'group'].filter((k) => /^TODO\b/.test(String(item[k] || '')));
+  if (open.length) throw new Error(`fill in ${open.join(' and ')} in ${path.join(dir, 'item.json')} first (it still says "TODO")`);
   const originFile = path.join(dir, '.commons.json');
   const fork = readJson(originFile);
   if (!item.slug) item.slug = slugify(path.basename(path.resolve(dir)));

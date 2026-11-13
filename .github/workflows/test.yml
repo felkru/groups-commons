@@ -17,6 +17,8 @@ jobs:
         with:
           node-version: 22 # the version in the Dockerfile
           cache: npm
+      # The PDF converter (commons convert) calls the poppler tools; without them its test is skipped.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
       - run: npm ci --no-audit --no-fund
       - run: npm test
       # The same tests against the PostgreSQL store, on PGlite (PostgreSQL inside the test process).
