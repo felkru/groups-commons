@@ -44,13 +44,23 @@ main { width: min(1180px, 100% - 40px - 2 * var(--safe-x)); margin: 0 auto; flex
 
 /* header */
 .top { width: min(1180px, 100% - 40px - 2 * var(--safe-x)); margin: 0 auto; padding: 18px 0; display: flex; align-items: center; gap: 16px; justify-content: space-between; flex-wrap: wrap; }
-.wordmark { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 9px; }
-.wordmark .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--red); display: inline-block; }
-.proto { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--red-dark); border: 1px solid var(--pink-b); background: var(--pink); border-radius: 999px; padding: 2px 8px; }
-.pill { display: flex; gap: 2px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 4px; box-shadow: 0 1px 2px rgba(59, 29, 18, 0.04); }
-.pill a { padding: 7px 15px; border-radius: 999px; text-decoration: none; color: var(--ink); font-size: 14.5px; font-weight: 500; }
-.pill a:hover { background: var(--pink); }
-.pill a.on { background: var(--ink); color: #fff; }
+.wordmark { font-family: var(--serif); font-size: 21px; font-weight: 600; letter-spacing: -0.005em; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.wordmark .mark { width: 28px; height: 28px; flex: none; display: block; }
+/* One navigation: plain links, the call to action as its one filled entry, the account as a round picture. */
+.nav { display: flex; align-items: center; gap: 2px; }
+.nav a { padding: 7px 11px; border-radius: 9px; text-decoration: none; color: var(--muted); font-size: 14.5px; font-weight: 500; white-space: nowrap; }
+.nav a:hover { color: var(--ink); background: rgba(59, 29, 18, 0.05); }
+.nav a.on { color: var(--ink); font-weight: 600; }
+.nav .mod { display: contents; }
+.nav a.cta { margin-left: 12px; padding: 8px 15px; border-radius: 999px; background: var(--red); color: #fff; font-weight: 600; }
+.nav a.cta:hover, .nav a.cta.on { background: var(--red-dark); color: #fff; }
+.nav a.avatar { margin-left: 8px; padding: 0; width: 34px; height: 34px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; background: #fff; border: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em; }
+.nav a.avatar.in { background: var(--ink); border-color: var(--ink); color: #fff; }
+.nav a.avatar:hover, .nav a.avatar.on { box-shadow: 0 0 0 3px var(--pink-b); }
+.nav a.avatar img { width: 100%; height: 100%; object-fit: cover; background: #fff; }
+.nav a.avatar svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.nav a.avatar .pic { display: contents; }
+.nav a.avatar .who { display: none; }
 .top .menu-btn { display: none; } /* phones only, see the end of this file */
 .menu-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .menu-btn .cross, .top.open .menu-btn .bars { display: none; }
@@ -304,13 +314,14 @@ dialog.setup ol.plain { margin: 0 0 8px; padding-left: 1.3em; font-size: 15px; d
 .err { color: var(--red-dark); font-size: 14px; }
 
 /* ------------------------------------------------------------------ tablets: the menu gets a row of its own */
-@media (min-width: 641px) and (max-width: 1219px) { .top > .pill { order: 3; } }
+@media (min-width: 641px) and (max-width: 900px) { .top > .nav { width: 100%; margin-left: -11px; } .nav a.cta { margin-left: auto; } }
 
 /* ------------------------------------------------------------------ touch screens and phones: fingers, not pointers
    Targets are about 44px high, and form fields use 16px text so that iOS does not zoom in on focus. */
 @media (pointer: coarse), (max-width: 640px) {
   .btn { min-height: 44px; }
-  .pill a { min-height: 44px; display: inline-flex; align-items: center; }
+  .nav a { min-height: 44px; display: inline-flex; align-items: center; }
+  .nav a.avatar { width: 44px; height: 44px; }
   .btn.small { min-height: 36px; padding: 6px 13px; position: relative; }
   .btn.small::before, pre.cmd button::before { content: ''; position: absolute; inset: -4px -2px; } /* 36px to look at, 44px to hit */
   .chip, .kit { min-height: 44px; display: inline-flex; align-items: center; }
@@ -357,16 +368,20 @@ dialog.setup ol.plain { margin: 0 0 8px; padding-left: 1.3em; font-size: 15px; d
 
   /* header: the wordmark and a Menu button; the navigation folds out below it */
   .top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px 0; }
-  .wordmark { font-size: 20px; gap: 7px; white-space: nowrap; min-width: 0; }
-  .wordmark .dot { width: 12px; height: 12px; flex: none; }
-  .proto { font-size: 10px; padding: 2px 7px; }
+  .wordmark { font-size: 20px; gap: 9px; min-width: 0; }
+  .wordmark .mark { width: 26px; height: 26px; }
   .top .menu-btn { display: inline-flex; padding: 8px 12px; gap: 6px; }
-  .top > .pill, .top > .row { display: none; grid-column: 1 / -1; }
-  .top.open > .pill { display: grid; gap: 2px; border-radius: 20px; padding: 6px; }
-  .top.open > .pill a { padding: 12px 16px; border-radius: 14px; font-size: 16px; }
-  .top.open > .row { display: flex; gap: 8px; padding-bottom: 6px; }
-  .top.open > .row > #acct { display: contents; }
-  .top.open > .row .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; font-size: 14.5px; }
+  .top > .nav { display: none; grid-column: 1 / -1; }
+  .top.open > .nav { display: flex; flex-direction: column; align-items: stretch; gap: 2px; background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 8px; margin-bottom: 6px; }
+  .top.open > .nav a { padding: 11px 14px; font-size: 16px; border-radius: 12px; }
+  .top.open > .nav a.on { background: var(--pink); }
+  .top.open > .nav a.cta { margin: 8px 0 0; justify-content: center; border-radius: 999px; }
+  .top.open > .nav a.cta.on { background: var(--red-dark); }
+  /* the account: its picture with its name next to it */
+  .top.open > .nav a.avatar { margin: 4px 0 0; width: auto; height: auto; border: 0; border-radius: 12px; background: none; color: var(--ink); justify-content: flex-start; gap: 10px; overflow: visible; font-size: 16px; font-weight: 500; letter-spacing: 0; box-shadow: none; }
+  .top.open > .nav a.avatar .pic { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; background: var(--ink); color: #fff; font-size: 11.5px; font-weight: 700; flex: none; }
+  .top.open > .nav a.avatar:not(.in) .pic { background: #fff; border: 1px solid var(--line); color: var(--muted); }
+  .top.open > .nav a.avatar .who { display: inline; }
 
   /* browse */
   .hero { padding: 16px 0 10px; gap: 0; }

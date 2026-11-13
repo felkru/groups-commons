@@ -13,16 +13,18 @@
 </head>
 <body>
 <header class="top">
-  <a class="wordmark" href="/"><span class="dot"></span>Groups Commons <span class="proto">prototype</span></a>
+  <a class="wordmark" href="/"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#c8442f"/><rect x="24" y="13" width="25" height="31" rx="5.5" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="3.6"/><rect x="15" y="21" width="25" height="31" rx="5.5" fill="#fff"/><path d="M21.5 31.5h12M21.5 38.5h12M21.5 45.5h7" stroke="#c8442f" stroke-width="3.2" stroke-linecap="round"/></svg>Groups Commons</a>
   <button type="button" class="btn menu-btn" id="menu-btn" aria-expanded="false" aria-controls="nav"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="bars" d="M3 5.5h14M3 10h14M3 14.5h14"/><path class="cross" d="M4.5 4.5l11 11M15.5 4.5l-11 11"/></svg><span>Menu</span></button>
-  <nav class="pill" id="nav">
+  <nav class="nav" id="nav" aria-label="Main">
     <a href="/" data-nav="browse">Browse</a>
     <a href="/brand" data-nav="brand">Brand kit</a>
     <a href="/leaderboard" data-nav="leaderboard">Leaderboard</a>
     <a href="/cli" data-nav="cli">Use with Claude</a>
     <a href="/about" data-nav="about">About</a>
+    <span id="mod" class="mod"></span>
+    <a class="cta" href="/contribute" data-nav="add">Add material</a>
+    <a class="avatar" id="acct" href="/account" data-nav="account" aria-label="Sign in" title="Sign in"></a>
   </nav>
-  <div class="row"><span id="acct" class="row"></span><button type="button" class="btn" data-agent-setup>Set up my AI</button><a class="btn primary" href="/contribute">Add material</a></div>
 </header>
 <main id="app"><p class="loading">Loading…</p></main>
 <footer class="foot">

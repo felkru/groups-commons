@@ -20,14 +20,14 @@ const routes = [
   [/^\/$/, home, 'browse', ''],
   [/^\/m\/([a-z0-9-]+)\/?$/, itemPage, 'browse', ''],
   [/^\/brand\/?$/, brandPage, 'brand', 'Brand kit'],
-  [/^\/add\/?$/, addPage, '', 'Add material'],
-  [/^\/contribute\/?$/, contributePage, '', 'Contribute'],
+  [/^\/add\/?$/, addPage, 'add', 'Add material'],
+  [/^\/contribute\/?$/, contributePage, 'add', 'Contribute'],
   [/^\/cli\/?$/, cliPage, 'cli', 'Use it with Claude'],
   [/^\/about\/?$/, aboutPage, 'about', 'About'],
   [/^\/privacy\/?$/, privacyPage, '', 'Privacy'],
   [/^\/leaderboard\/?$/, leaderboardPage, 'leaderboard', 'Leaderboard'],
-  [/^\/account\/?$/, accountPage, '', 'Account'],
-  [/^\/moderate\/?$/, moderatePage, '', 'Moderate'],
+  [/^\/account\/?$/, accountPage, 'account', 'Account'],
+  [/^\/moderate\/?$/, moderatePage, 'moderate', 'Moderate'],
 ];
 
 // On phones the navigation folds away behind the Menu button in the header (styles.css shows the button there).
@@ -57,10 +57,20 @@ async function render() {
   setMenu(false);
   const path = location.pathname;
   const route = routes.find(([re]) => re.test(path));
-  for (const a of $$('#nav a')) a.classList.toggle('on', !!route && a.dataset.nav === route[2]);
   queueMicrotask(() => $$('[data-tryit]').forEach((a) => a.setAttribute('href', `https://claude.ai/new?q=${encodeURIComponent(tryItPrompt())}`)));
   const me = state.meta.account;
-  $('#acct').innerHTML = `${state.meta.admin ? '<a class="btn small" href="/moderate">Moderate</a>' : ''}<a class="btn small" href="/account">${me ? esc(me.username) : 'Sign in'}</a>`;
+  // The account: a round picture (the group's own square logo once it has one), else the first two letters of
+  // the user name; a plain figure while nobody is signed in.
+  const acct = $('#acct');
+  const brand = getBrand();
+  const picture = me && !activePreset() && brand.logo_square ? brand.logo_square : '';
+  const face = me ? (picture ? `<img alt="" src="${esc(picture)}">` : esc([...me.username].slice(0, 2).join('').toUpperCase())) : '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7.2" r="3.3"/><path d="M3.6 17.2c.9-3.2 3.4-4.8 6.4-4.8s5.500 1.600 6.400 4.800"/></svg>';
+  acct.innerHTML = `<span class="pic">${face}</span><span class="who">${me ? esc(me.username) : 'Sign in'}</span>`;
+  acct.classList.toggle('in', !!me);
+  acct.setAttribute('aria-label', me ? `Account: ${me.username}` : 'Sign in');
+  acct.title = me ? `Signed in as ${me.username}` : 'Sign in';
+  $('#mod').innerHTML = state.meta.admin ? '<a href="/moderate" data-nav="moderate">Moderate</a>' : '';
+  for (const a of $$('#nav a')) a.classList.toggle('on', !!route && a.dataset.nav === route[2]);
   document.title = !route ? 'Page not found · Groups Commons' : route[3] ? `${route[3]} · Groups Commons` : SITE_TITLE;
   if (!route) {
     app.innerHTML = '<div class="empty"><h2>Page not found</h2><p><a href="/">Back to all materials</a></p></div>';
